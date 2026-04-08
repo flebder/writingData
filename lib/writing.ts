@@ -14,32 +14,56 @@ export const SHEET_ID = "10vokY2B5p69eY_9CieUCzgfFY6NjJfKzAv36bAqj9Qg";
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
+export const FALLBACK_SESSIONS: WritingSession[] = [
+  { id: "fallback-1", start: "2026-04-01T09:00:00.000Z", end: "2026-04-01T09:45:00.000Z" },
+  { id: "fallback-2", start: "2026-04-02T20:30:00.000Z", end: "2026-04-02T21:20:00.000Z" },
+  { id: "fallback-3", start: "2026-04-03T23:30:00.000Z", end: "2026-04-04T00:05:00.000Z" }
+];
+
+function parseUsDateLike(value: string): Date | null {
+  // Supports: 4/6/26, 9:24 | 1/23/26, 11:54 PM | 4/6/2026 9:24
+  const m = value.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s)+(?:(\d{1,2}):(\d{2})(?::(\d{2}))?)(?:\s*(AM|PM))?$/i
+  );
+  if (!m) return null;
+
+  let [, mm, dd, yyyy, hh, min, sec, ampm] = m;
+  const year = yyyy.length === 2 ? 2000 + Number(yyyy) : Number(yyyy);
+  let hour = Number(hh);
+  if (ampm) {
+    const upper = ampm.toUpperCase();
+    if (upper === "PM" && hour < 12) hour += 12;
+    if (upper === "AM" && hour === 12) hour = 0;
+  }
+  return new Date(year, Number(mm) - 1, Number(dd), hour, Number(min), Number(sec || 0));
+}
+
 function normalizeDate(value: string): Date | null {
-  const cleaned = value.trim();
+  const cleaned = value.replace(/^"|"$/g, "").trim();
   if (!cleaned) return null;
 
-  // Handles gviz style: Date(2026,3,8,20,30,0)
+  // gviz style: Date(2026,3,8,20,30,0)
   const gviz = cleaned.match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
   if (gviz) {
     const [, y, m, d, h, min, s] = gviz;
     return new Date(Number(y), Number(m), Number(d), Number(h), Number(min), Number(s));
   }
 
-  const native = new Date(cleaned);
-  if (!Number.isNaN(native.getTime())) return native;
+  const commonTransforms = [
+    cleaned,
+    cleaned.replace(" at ", " "),
+    cleaned.replace(/,\s*/g, " ")
+  ];
 
-  // Fallback for common sheets format mm/dd/yyyy hh:mm:ss
-  const us = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
-  if (!us) return null;
-  let [, mm, dd, yyyy, hh, mins, secs, ap] = us;
-  let hour = Number(hh);
-  if (ap) {
-    const upper = ap.toUpperCase();
-    if (upper === "PM" && hour < 12) hour += 12;
-    if (upper === "AM" && hour === 12) hour = 0;
+  for (const candidate of commonTransforms) {
+    const parsed = new Date(candidate);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+
+    const us = parseUsDateLike(candidate);
+    if (us && !Number.isNaN(us.getTime())) return us;
   }
-  const year = yyyy.length === 2 ? 2000 + Number(yyyy) : Number(yyyy);
-  return new Date(year, Number(mm) - 1, Number(dd), hour, Number(mins), Number(secs || 0));
+
+  return null;
 }
 
 function toYmd(d: Date): string {
@@ -65,21 +89,25 @@ export function splitSessionAcrossDays(start: Date, end: Date) {
 }
 
 export function parseCsvSessions(csv: string): WritingSession[] {
-  const lines = csv.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
   const sessions: WritingSession[] = [];
 
   for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const cols = line
+    const cols = lines[i]
       .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-      .map((part) => part.replace(/^"|"$/g, "").trim());
+      .map((part) => part.trim());
 
-    if (cols.length < 3) continue;
-    if (i === 0 && /start/i.test(cols[1]) && /end/i.test(cols[2])) continue;
+    // Column B = index 1, Column C = index 2
+    const start = normalizeDate(cols[1] || "");
+    const end = normalizeDate(cols[2] || "");
 
-    const start = normalizeDate(cols[1]);
-    const end = normalizeDate(cols[2]);
-    if (!start || !end || end <= start) continue;
+    if (!start || !end || end <= start) {
+      continue;
+    }
 
     sessions.push({
       id: `${start.getTime()}-${end.getTime()}-${i}`,

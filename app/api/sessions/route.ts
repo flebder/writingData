@@ -1,28 +1,27 @@
 import { NextResponse } from "next/server";
-import { parseCsvSessions, SHEET_ID } from "@/lib/writing";
+import { FALLBACK_SESSIONS, parseCsvSessions, SHEET_ID } from "@/lib/writing";
 
 export const revalidate = 300;
 
-const URLS = [
-  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`,
-  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=0`,
-  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?output=csv`
-];
+const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
 
 async function fetchWithTimeout(url: string, timeoutMs = 15_000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const res = await fetch(url, {
       signal: controller.signal,
       next: { revalidate: 300 },
       headers: {
-        "User-Agent": "writing-analytics-dashboard/1.0"
+        Accept: "text/csv,text/plain;q=0.9,*/*;q=0.8"
       }
     });
+
     if (!res.ok) {
-      throw new Error(`Failed ${url} (${res.status})`);
+      throw new Error(`Google Sheets request failed (${res.status})`);
     }
+
     return await res.text();
   } finally {
     clearTimeout(timeout);
@@ -30,26 +29,39 @@ async function fetchWithTimeout(url: string, timeoutMs = 15_000) {
 }
 
 export async function GET() {
-  const errors: string[] = [];
+  try {
+    const csv = await fetchWithTimeout(CSV_URL);
+    const sessions = parseCsvSessions(csv);
 
-  for (const url of URLS) {
-    try {
-      const csv = await fetchWithTimeout(url);
-      const sessions = parseCsvSessions(csv);
-      if (sessions.length > 0) {
-        return NextResponse.json({ source: url, sessions, fetchedAt: new Date().toISOString() });
-      }
-      errors.push(`No valid rows from ${url}`);
-    } catch (err) {
-      errors.push((err as Error).message);
+    if (sessions.length === 0) {
+      console.error("/api/sessions parsed zero valid rows; serving fallback dataset");
+      return NextResponse.json({
+        ok: false,
+        warning: "Sheet loaded but contained no valid rows. Serving fallback data.",
+        source: "fallback",
+        sessions: FALLBACK_SESSIONS,
+        fetchedAt: new Date().toISOString()
+      });
     }
-  }
 
-  return NextResponse.json(
-    {
-      error: "Unable to fetch writing sessions from Google Sheets.",
-      details: errors
-    },
-    { status: 502 }
-  );
+    return NextResponse.json({
+      ok: true,
+      source: CSV_URL,
+      sessions,
+      fetchedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("/api/sessions failed; serving fallback dataset", error);
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Unable to fetch writing sessions from Google Sheets. Serving fallback data.",
+        source: "fallback",
+        sessions: FALLBACK_SESSIONS,
+        fetchedAt: new Date().toISOString()
+      },
+      { status: 200 }
+    );
+  }
 }
