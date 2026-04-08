@@ -11,11 +11,21 @@ const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "
 const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
 const level = (min: number) => (!min ? "none" : min < 30 ? "below" : min < 60 ? "baseline" : min < 120 ? "goal" : "super");
-const statusText = (min: number) => (!min ? "no writing" : min < 30 ? "below baseline" : min < 60 ? "baseline" : min < 120 ? "goal" : "super goal");
 const fmtMinutes = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`);
 
 function ymd(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+function ordinal(day: number) {
+  if (day % 10 === 1 && day % 100 !== 11) return `${day}st`;
+  if (day % 10 === 2 && day % 100 !== 12) return `${day}nd`;
+  if (day % 10 === 3 && day % 100 !== 13) return `${day}rd`;
+  return `${day}th`;
+}
+function formatMonthOrdinal(ymdStr: string) {
+  if (!ymdStr || ymdStr === "-") return "-";
+  const d = new Date(`${ymdStr}T12:00:00Z`);
+  return `${d.toLocaleDateString("en-US", { month: "long" })} ${ordinal(d.getUTCDate())}`;
 }
 
 export default function Dashboard() {
@@ -85,26 +95,40 @@ export default function Dashboard() {
     const pct = prev14 ? Math.round((diff / prev14) * 100) : 0;
 
     const sessions = payload?.sessions || [];
-    const suggestedHour = sessions.length
-      ? Math.round(
-          sessions
-            .map((s) => Number(new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", hour12: false }).format(new Date(s.start))))
-            .reduce((a, b) => a + b, 0) / sessions.length
-        )
-      : 9;
-
-    const nearHour = sessions.filter((s) => Number(new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", hour12: false }).format(new Date(s.start))) === suggestedHour);
-    const predicted = nearHour.length
-      ? Math.round(nearHour.reduce((a, s) => a + (new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000, 0) / nearHour.length)
-      : 45;
+    const eightWeeksAgo = Date.now() - 56 * 24 * 60 * 60 * 1000;
+    const hourBuckets = Array.from({ length: 24 }, (_, hour) => ({ hour, values: [] as number[] }));
+    for (const s of sessions) {
+      const st = new Date(s.start);
+      if (st.getTime() < eightWeeksAgo) continue;
+      const duration = Math.round((new Date(s.end).getTime() - st.getTime()) / 60000);
+      if (duration < 10 || duration > 240) continue;
+      const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", hour12: false }).format(st));
+      hourBuckets[h].values.push(duration);
+    }
+    const scored = hourBuckets
+      .filter((b) => b.values.length >= 3)
+      .map((b) => {
+        const sorted = [...b.values].sort((a, c) => a - c);
+        const trimmed = sorted.slice(0, Math.max(1, Math.floor(sorted.length * 0.8)));
+        const avgDur = Math.round(trimmed.reduce((a, c) => a + c, 0) / trimmed.length);
+        return { hour: b.hour, avgDur, sample: b.values.length, score: avgDur * Math.log2(1 + b.values.length) };
+      })
+      .sort((a, b) => b.score - a.score);
+    const bestHour = scored[0]?.hour ?? 9;
+    const predicted = scored[0]?.avgDur ?? 45;
+    const compareRef = sortedDays.at(-15) || sortedDays.at(0) || now.toISOString().slice(0, 10);
+    const compareLabel = formatMonthOrdinal(compareRef);
+    const hourLabel = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", minute: "2-digit" }).format(
+      new Date(Date.UTC(2026, 0, 1, bestHour, 0, 0))
+    ).toLowerCase();
 
     return {
       avg,
       month,
       year,
       best,
-      trendText: `${diff >= 0 ? "Up" : "Down"} ${fmtMinutes(Math.abs(diff))} (${Math.abs(pct)}%) vs prior 14 days`,
-      motivation: `If you write around ${String(suggestedHour).padStart(2, "0")}:00 tomorrow, you’ll likely write for ~${predicted} minutes.`
+      trendText: `Compared to ${compareLabel}, your writing is ${diff >= 0 ? "up" : "down"} by ${fmtMinutes(Math.abs(diff))} (${Math.abs(pct)}%).`,
+      motivation: `If you write around ${hourLabel} tomorrow, you’ll likely write for about ${predicted} minutes.`
     };
   }, [byDay, payload, sortedDays]);
 
@@ -131,7 +155,6 @@ export default function Dashboard() {
   }, [payload]);
 
   const maxHour = Math.max(1, ...hourly.map((h) => h.count));
-  const points = hourly.map((h, i) => `${(i / 23) * 100},${100 - (h.count / maxHour) * 90}`).join(" ");
 
   const selected = selectedDay ? byDay[selectedDay] : null;
   const hovered = hover?.day ? byDay[hover.day] : null;
@@ -171,7 +194,7 @@ export default function Dashboard() {
               return (
                 <button
                   key={key}
-                  className={`day ${level(min)}`}
+                  className={`day ${level(min)} ${min === 0 && new Date(key) < new Date() ? "zeroPast" : ""}`}
                   onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })}
                   onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })}
                   onMouseLeave={() => setHover(null)}
@@ -202,7 +225,7 @@ export default function Dashboard() {
                     return (
                       <button
                         key={key}
-                        className={`mini ${level(min)}`}
+                        className={`mini ${level(min)} ${min === 0 && new Date(key) < new Date() ? "zeroPast" : ""}`}
                         onClick={() => setSelectedDay(key)}
                         onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })}
                         onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })}
@@ -220,7 +243,6 @@ export default function Dashboard() {
           <div className="hoverTip" style={{ left: hover.x + 12, top: hover.y + 12 }}>
             <strong>{dateFmt.format(new Date(`${hover.day}T12:00:00Z`))}</strong>
             <span>{fmtMinutes(hovered?.minutes || 0)} written</span>
-            <em>{statusText(hovered?.minutes || 0)}</em>
           </div>
         )}
       </section>
@@ -229,7 +251,7 @@ export default function Dashboard() {
         <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.avg)}</p></article>
         <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.month)}</p></article>
         <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.year)}</p></article>
-        <article className="panel"><h3>Best Day This Month</h3><p>{fmtMinutes(stats.best.minutes)}</p><small>{stats.best.date}</small></article>
+        <article className="panel"><h3>Best Day This Month</h3><p>{fmtMinutes(stats.best.minutes)} <small>{formatMonthOrdinal(stats.best.date)}</small></p></article>
       </section>
 
       <section className="stats secondaryStats">
@@ -253,15 +275,16 @@ export default function Dashboard() {
         </div>
 
         <h3>Writing activity across the day</h3>
-        <svg viewBox="0 0 100 100" className="lineChart" aria-label="Writing activity by hour">
-          <polyline fill="none" stroke="#2f7f61" strokeWidth="2" points={points} />
-          {hourly.map((h, i) => (
-            <circle key={h.hour} cx={(i / 23) * 100} cy={100 - (h.count / maxHour) * 90} r="1.3" fill="#2f7f61" />
+        <div className="hourHist">
+          {hourly.map((h) => (
+            <div key={h.hour} className="hourCol" title={`${String(h.hour).padStart(2, "0")}:00 • ${h.count} sessions`}>
+              <div className="hourBar" style={{ height: `${Math.max(8, (h.count / maxHour) * 100)}%` }} />
+            </div>
           ))}
-        </svg>
+        </div>
         <div className="hourTicks">
           {Array.from({ length: 24 }, (_, i) => (
-            <span key={i}>{i % 3 === 0 ? String(i).padStart(2, "0") : "·"}</span>
+            <span key={i} className={i % 3 === 0 ? "major" : "minor"}>{String(i).padStart(2, "0")}</span>
           ))}
         </div>
         <p className="axisLabel">Hours in day (America/Los_Angeles), showing peaks and dips in writing starts.</p>
@@ -272,11 +295,11 @@ export default function Dashboard() {
           <div className="modalCard" onClick={(e) => e.stopPropagation()}>
             <h3>{dateFmt.format(new Date(`${selected.date}T12:00:00Z`))}</h3>
             <p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p>
-            <p>Last 7 days (incl. selected): <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p>
+            <p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p>
+            <button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button>
             <ul>
               {selected.sessions.map((s) => <li key={s.id}>{timeFmt.format(new Date(s.start))} – {timeFmt.format(new Date(s.end))}</li>)}
             </ul>
-            <button onClick={() => setSelectedDay(null)}>Close</button>
           </div>
         </div>
       )}
