@@ -77,12 +77,25 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .hourTicks .major { color: #355f49; font-weight: 600; }
 .hourTicks .minor { opacity: .55; }
 .axisLabel { color: var(--muted); font-size: 12px; }
+.hourTooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 30;
+  background: #ffffff;
+  border: 1px solid #cfe1d5;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 6px 8px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+}
 
 .modal { position: fixed; inset: 0; background: rgba(30, 45, 37, 0.32); display: grid; place-items: center; padding: 14px; }
-.modalCard { width: min(560px, 92vw); background: #fffffd; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 18px; }
+.modalCard { width: min(460px, 92vw); background: #fffffd; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px; }
 .modalCard h3 { margin-top: 0; font-family: "Iowan Old Style", serif; }
-.modalCard ul { margin: 10px 0; padding-left: 18px; max-height: 220px; overflow: auto; }
+.modalCard ul { margin: 8px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; }
 .modalCloseX { position: absolute; top: 10px; right: 12px; border: none; background: transparent; font-size: 24px; line-height: 1; padding: 0; }
-.modalCard { position: relative; padding-right: 34px; }
+.modalCard { position: relative; padding-right: 30px; }
 
 @media (max-width: 900px) { .yearWrap { grid-template-columns: repeat(2, minmax(0,1fr)); } .secondaryStats { grid-template-columns: 1fr; } }

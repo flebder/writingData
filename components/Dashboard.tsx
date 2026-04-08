@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [displayDate, setDisplayDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
+  const [hourHover, setHourHover] = useState<{ hour: number; avg: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/sessions").then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
@@ -116,18 +117,22 @@ export default function Dashboard() {
       .sort((a, b) => b.score - a.score);
     const bestHour = scored[0]?.hour ?? 9;
     const predicted = scored[0]?.avgDur ?? 45;
-    const compareRef = sortedDays.at(-15) || sortedDays.at(0) || now.toISOString().slice(0, 10);
-    const compareLabel = formatMonthOrdinal(compareRef);
+    const twoWeeksAgo = new Date(now);
+    twoWeeksAgo.setDate(now.getDate() - 14);
+    const compareLabel = formatMonthOrdinal(twoWeeksAgo.toISOString().slice(0, 10));
     const hourLabel = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", minute: "2-digit" }).format(
       new Date(Date.UTC(2026, 0, 1, bestHour, 0, 0))
     ).toLowerCase();
+    const weeklyAvgNow = Math.round(last14 / 2);
+    const weeklyAvgPrev = Math.round(prev14 / 2);
+    const weeklyDiff = weeklyAvgNow - weeklyAvgPrev;
 
     return {
       avg,
       month,
       year,
       best,
-      trendText: `Compared to ${compareLabel}, your writing is ${diff >= 0 ? "up" : "down"} by ${fmtMinutes(Math.abs(diff))} (${Math.abs(pct)}%).`,
+      trendText: `Compared to ${compareLabel}, your writing has ${diff > 0 ? "increased" : diff < 0 ? "decreased" : "stayed the same"}. Your weekly average of ${fmtMinutes(weeklyAvgNow)} is ${weeklyDiff >= 0 ? "up" : "down"} by ${fmtMinutes(Math.abs(weeklyDiff))}${weeklyAvgPrev ? ` (${Math.abs(pct)}%)` : ""}.`,
       motivation: `If you write around ${hourLabel} tomorrow, you’ll likely write for about ${predicted} minutes.`
     };
   }, [byDay, payload, sortedDays]);
@@ -146,11 +151,14 @@ export default function Dashboard() {
   }, [byDay]);
 
   const hourly = useMemo(() => {
-    const bins = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+    const bins = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0, totalMinutes: 0, avgMinutes: 0 }));
     for (const s of payload?.sessions || []) {
       const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", hour12: false }).format(new Date(s.start)));
+      const duration = Math.max(1, Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000));
       bins[h].count += 1;
+      bins[h].totalMinutes += duration;
     }
+    bins.forEach((b) => (b.avgMinutes = b.count ? Math.round(b.totalMinutes / b.count) : 0));
     return bins;
   }, [payload]);
 
@@ -251,7 +259,7 @@ export default function Dashboard() {
         <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.avg)}</p></article>
         <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.month)}</p></article>
         <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.year)}</p></article>
-        <article className="panel"><h3>Best Day This Month</h3><p>{fmtMinutes(stats.best.minutes)} <small>{formatMonthOrdinal(stats.best.date)}</small></p></article>
+        <article className="panel"><h3>Best Day This Month</h3><p>{fmtMinutes(stats.best.minutes)} <small>({stats.best.date === "-" ? "-" : `${new Date(`${stats.best.date}T12:00:00Z`).getUTCMonth() + 1}/${new Date(`${stats.best.date}T12:00:00Z`).getUTCDate()}`})</small></p></article>
       </section>
 
       <section className="stats secondaryStats">
@@ -277,7 +285,13 @@ export default function Dashboard() {
         <h3>Writing activity across the day</h3>
         <div className="hourHist">
           {hourly.map((h) => (
-            <div key={h.hour} className="hourCol" title={`${String(h.hour).padStart(2, "0")}:00 • ${h.count} sessions`}>
+            <div
+              key={h.hour}
+              className="hourCol"
+              onMouseEnter={(e) => setHourHover({ hour: h.hour, avg: h.avgMinutes, x: e.clientX, y: e.clientY })}
+              onMouseMove={(e) => setHourHover({ hour: h.hour, avg: h.avgMinutes, x: e.clientX, y: e.clientY })}
+              onMouseLeave={() => setHourHover(null)}
+            >
               <div className="hourBar" style={{ height: `${Math.max(8, (h.count / maxHour) * 100)}%` }} />
             </div>
           ))}
@@ -288,6 +302,12 @@ export default function Dashboard() {
           ))}
         </div>
         <p className="axisLabel">Hours in day (America/Los_Angeles), showing peaks and dips in writing starts.</p>
+        {hourHover && (
+          <div className="hourTooltip" style={{ left: hourHover.x + 12, top: hourHover.y + 12 }}>
+            <strong>{String(hourHover.hour).padStart(2, "0")}:00</strong>
+            <span>Avg writing: {fmtMinutes(hourHover.avg)}</span>
+          </div>
+        )}
       </section>
 
       {selected && (
