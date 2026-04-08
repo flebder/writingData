@@ -1,0 +1,101 @@
+:root {
+  --bg: #f3f6f1;
+  --paper: #fcfffa;
+  --ink: #243028;
+  --muted: #617468;
+  --line: #d8e2db;
+  --shadow: 0 10px 24px rgba(31, 56, 42, 0.08);
+  --none: #eef3ef;
+  --zero: #f6d8d8;
+  --below: #ffe8b8;
+  --baseline: #9fd1b5;
+  --goal: #5eae84;
+  --super: #2f7f61;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, system-ui, sans-serif; color: var(--ink); background: linear-gradient(#f8fbf7, #edf3ef); }
+.journalShell { max-width: 1160px; margin: 0 auto; padding: 28px; }
+.hero h1 { font-family: "Iowan Old Style", "Times New Roman", serif; margin: 0; font-size: 42px; }
+.hero p { color: var(--muted); margin: 8px 0 0; }
+
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 14px; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.navBlock { display: flex; align-items: center; gap: 10px; }
+.modeSwitch { display: flex; gap: 8px; }
+button { border: 1px solid var(--line); background: #f8fcf9; color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+button.active { background: #dcefe2; border-color: #9dcab0; }
+
+.monthGrid { display: grid; grid-template-columns: repeat(7,1fr); gap: 8px; }
+.day { min-height: 48px; border-radius: 8px; }
+.day.none, .mini.none { background: var(--none); }
+.day.zeroPast, .mini.zeroPast { background: var(--zero); }
+.day.below, .mini.below { background: var(--below); }
+.day.baseline, .mini.baseline { background: var(--baseline); }
+.day.goal, .mini.goal { background: var(--goal); color: #fff; }
+.day.super, .mini.super { background: var(--super); color: #fff; }
+.day.empty { opacity: 0; pointer-events: none; }
+
+.yearWrap { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.monthBlock { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fbfefc; }
+.monthJump { width: 100%; text-align: left; font-family: "Iowan Old Style", serif; font-size: 16px; margin-bottom: 6px; }
+.monthMiniGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.mini { height: 12px; padding: 0; border-radius: 3px; }
+
+.hoverTip {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  background: #ffffff;
+  border: 1px solid #cfe1d5;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 240px;
+}
+.hoverTip strong { font-size: 12px; }
+.hoverTip span { font-size: 12px; color: var(--muted); font-style: normal; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 12px; }
+.secondaryStats { grid-template-columns: 1fr 1fr; }
+.stats h3 { margin: 0; color: var(--muted); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+.stats p { margin: 8px 0 0; font-size: 21px; line-height: 1.35; }
+.stats small { color: var(--muted); }
+
+.chartPanel h3 { font-family: "Iowan Old Style", serif; margin: 8px 0; }
+.hBars { display: grid; gap: 7px; margin-bottom: 14px; }
+.hBarRow { display: grid; grid-template-columns: 44px 1fr 76px; align-items: center; gap: 10px; }
+.hBarTrack { background: #e5eee8; border-radius: 10px; height: 12px; overflow: hidden; }
+.hBarFill { background: linear-gradient(90deg, #79be98, #2f7f61); height: 100%; }
+.hourHist { height: 160px; border: 1px solid var(--line); border-radius: 10px; background: #fbfffc; display: grid; grid-template-columns: repeat(24,1fr); align-items: end; gap: 4px; padding: 10px 6px; }
+.hourCol { height: 100%; display: flex; align-items: flex-end; }
+.hourBar { width: 100%; background: linear-gradient(180deg, #8ec6a6, #2f7f61); border-radius: 4px 4px 2px 2px; min-height: 6px; }
+.hourTicks { display: grid; grid-template-columns: repeat(24,1fr); font-size: 10px; color: var(--muted); margin-top: 4px; }
+.hourTicks span { text-align: center; }
+.hourTicks .major { color: #355f49; font-weight: 600; }
+.hourTicks .minor { opacity: .55; }
+.axisLabel { color: var(--muted); font-size: 12px; }
+.hourTooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 30;
+  background: #ffffff;
+  border: 1px solid #cfe1d5;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 6px 8px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal { position: fixed; inset: 0; background: rgba(30, 45, 37, 0.32); display: grid; place-items: center; padding: 14px; }
+.modalCard { width: min(460px, 92vw); background: #fffffd; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px; }
+.modalCard h3 { margin-top: 0; font-family: "Iowan Old Style", serif; }
+.modalCard ul { margin: 8px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; }
+.modalCloseX { position: absolute; top: 10px; right: 12px; border: none; background: transparent; font-size: 24px; line-height: 1; padding: 0; }
+.modalCard { position: relative; padding-right: 30px; }
+
+@media (max-width: 900px) { .yearWrap { grid-template-columns: repeat(2, minmax(0,1fr)); } .secondaryStats { grid-template-columns: 1fr; } }
