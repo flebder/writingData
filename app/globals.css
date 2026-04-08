@@ -1,52 +1,65 @@
 :root {
-  --bg: #0b1020;
-  --panel: #121a31;
-  --panel-soft: #182140;
-  --text: #eef3ff;
-  --muted: #9fb1d9;
-  --accent: #5fd3bc;
+  --bg: #f6f0e6;
+  --paper: #fffaf1;
+  --ink: #2f2924;
+  --muted: #74685d;
+  --line: #dfd3c3;
+  --shadow: 0 12px 30px rgba(68, 52, 36, 0.08);
+  --none: #efe7db;
+  --below: #dbcbb5;
+  --baseline: #c7b092;
+  --goal: #a38365;
+  --superb: #6f543f;
 }
-
 * { box-sizing: border-box; }
-body {
-  margin: 0;
-  background: radial-gradient(circle at 15% 20%, #1a2550, var(--bg));
-  color: var(--text);
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-}
+body { margin: 0; font-family: "Inter", "Segoe UI", sans-serif; color: var(--ink); background: linear-gradient(#f8f3eb, #f2e8d9); }
 
-a { color: inherit; }
+.journalShell { max-width: 1150px; margin: 0 auto; padding: 28px; }
+.hero h1 { font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 44px; margin: 0; }
+.hero p { color: var(--muted); margin-top: 8px; }
 
-.panel {
-  background: linear-gradient(180deg, var(--panel), var(--panel-soft));
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.2);
-}
-.toolbar { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-button { background: #25335f; border: 1px solid #3d4f86; color: white; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
-button.active { background: #446de0; }
-.grid.month { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
-.grid.year { display: grid; grid-template-columns: repeat(31, minmax(0,1fr)); gap: 4px; }
-.cell { border: none; min-height: 48px; border-radius: 8px; text-align: left; padding: 6px; }
-.yearcell { min-height: 14px; border-radius: 3px; padding: 0; }
-.cell.empty { opacity: 0; pointer-events: none; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.stats h3 { margin: 0; color: var(--muted); font-size: 13px; }
-.stats p { margin: 8px 0 0; font-size: 24px; font-weight: 700; }
-.prediction { font-size: 18px; }
-.modal { position: fixed; inset: 0; border: 0; background: rgba(8,11,18,0.6); display: grid; place-items: center; }
-.modalCard { width: min(480px, 92vw); background: #131c35; padding: 18px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); }
-.modalCard ul { max-height: 180px; overflow: auto; }
-.patternGrid {
-  display: grid;
-  grid-template-columns: repeat(24, minmax(0, 1fr));
-  gap: 4px;
-}
-.patternCell {
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(255,255,255,0.06);
-}
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 16px; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+button { border: 1px solid var(--line); background: #fbf7ef; color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+button.active { background: #e8dccb; }
+
+.monthGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.day { min-height: 48px; border-radius: 8px; }
+.day.none { background: var(--none); }
+.day.below { background: var(--below); }
+.day.baseline { background: var(--baseline); }
+.day.goal { background: var(--goal); color: #fff; }
+.day.superb { background: var(--superb); color: #fff; }
+.day.empty { opacity: 0; pointer-events: none; }
+
+.yearWrap { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.monthBlock h4 { margin: 0 0 6px; font-family: "Iowan Old Style", serif; }
+.monthMiniGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.mini { height: 12px; padding: 0; border-radius: 3px; }
+.mini.none { background: var(--none); }
+.mini.below { background: var(--below); }
+.mini.baseline { background: var(--baseline); }
+.mini.goal { background: var(--goal); }
+.mini.superb { background: var(--superb); }
+
+.hoverTip { margin-top: 12px; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: #fffefb; display: flex; flex-direction: column; gap: 4px; }
+.hoverTip em { color: var(--muted); font-style: normal; }
+
+.stats { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.stats h3 { margin: 0; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+.stats p { margin: 6px 0 0; font-size: 21px; line-height: 1.3; }
+
+.chartPanel h3 { font-family: "Iowan Old Style", serif; margin: 8px 0; }
+.barChart { display: grid; grid-template-columns: repeat(7, 1fr); align-items: end; gap: 8px; min-height: 140px; margin-bottom: 12px; }
+.barCol { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.bar { width: 28px; background: linear-gradient(#c8b095,#8a6a51); border-radius: 8px 8px 4px 4px; }
+.hourRow { display: grid; grid-template-columns: repeat(24, 1fr); gap: 4px; margin-top: 8px; }
+.hourBin { height: 16px; background: #7a624f; border-radius: 3px; }
+.axisLabel { color: var(--muted); font-size: 12px; }
+
+.modal { position: fixed; inset: 0; background: rgba(46,34,24,0.36); display: grid; place-items: center; padding: 14px; }
+.modalCard { width: min(540px, 92vw); background: #fffdf8; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 18px; }
+.modalCard h3 { margin-top: 0; font-family: "Iowan Old Style", serif; }
+.modalCard ul { margin: 12px 0; padding-left: 18px; max-height: 200px; overflow: auto; }
+
+@media (max-width: 900px) { .yearWrap { grid-template-columns: repeat(2, minmax(0,1fr)); } }

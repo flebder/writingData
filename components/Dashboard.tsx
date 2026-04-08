@@ -1,61 +1,38 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { aggregateDays, rollingWeekMinutes, type WritingSession } from "@/lib/writing";
+import { aggregateDays, rollingWeekMinutes, WRITING_TZ, type WritingSession } from "@/lib/writing";
 
-type ApiPayload = {
-  sessions: WritingSession[];
-  source: string;
-  fetchedAt: string;
-};
-
+type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
 type ViewMode = "month" | "year";
 
-const palette = {
-  none: "#1f2947",
-  baseline: "#2f6f6f",
-  goal: "#3ea57d",
-  superb: "#83f29b"
-};
+const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", minute: "2-digit" });
+const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
-function toDate(s: string) {
-  return new Date(s);
-}
+const level = (min: number) => (!min ? "none" : min < 30 ? "below" : min < 60 ? "baseline" : min < 120 ? "goal" : "superb");
+const statusText = (min: number) => (min < 30 ? "below baseline" : min < 60 ? "baseline" : "goal achieved");
+const fmtMinutes = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`);
 
 function ymd(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function fmtMinutes(min: number) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (!h) return `${m}m`;
-  if (!m) return `${h}h`;
-  return `${h}h ${m}m`;
-}
-
-function blockColor(min: number) {
-  if (!min) return palette.none;
-  if (min < 60) return palette.baseline;
-  if (min < 120) return palette.goal;
-  return palette.superb;
-}
-
 export default function Dashboard() {
   const [payload, setPayload] = useState<ApiPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [displayDate, setDisplayDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [hoveredDay, setHoveredDay] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/sessions")
-      .then(async (res) => {
-        if (!res.ok) throw new Error((await res.json()).error || "failed");
-        return res.json();
-      })
-      .then(setPayload)
-      .catch((err: Error) => setError(err.message));
+    fetch("/api/sessions").then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
+  }, []);
+
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setSelectedDay(null);
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
   }, []);
 
   const byDay = useMemo(() => aggregateDays(payload?.sessions || []), [payload]);
@@ -73,195 +50,149 @@ export default function Dashboard() {
     return cells;
   }, [displayDate]);
 
-  const yearlyCells = useMemo(() => {
+  const months = useMemo(() => {
     const y = displayDate.getFullYear();
-    const start = new Date(y, 0, 1);
-    const end = new Date(y, 11, 31);
-    const cells: Date[] = [];
-    for (let t = start.getTime(); t <= end.getTime(); t += 86400000) cells.push(new Date(t));
-    return cells;
+    return Array.from({ length: 12 }, (_, m) => {
+      const first = new Date(y, m, 1);
+      const total = new Date(y, m + 1, 0).getDate();
+      return { name: first.toLocaleDateString(undefined, { month: "short" }), days: Array.from({ length: total }, (_, i) => new Date(y, m, i + 1)) };
+    });
   }, [displayDate]);
 
   const stats = useMemo(() => {
     const now = new Date();
-    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     let month = 0;
     let year = 0;
     for (const [d, v] of Object.entries(byDay)) {
-      if (d.startsWith(ym)) month += v.minutes;
+      if (d.startsWith(thisMonth)) month += v.minutes;
       if (d.startsWith(String(now.getFullYear()))) year += v.minutes;
     }
+    const avg = sortedDays.length ? Math.round(year / sortedDays.length) : 0;
+    const last14 = sortedDays.slice(-14).reduce((a, d) => a + byDay[d].minutes, 0);
+    const prev14 = sortedDays.slice(-28, -14).reduce((a, d) => a + byDay[d].minutes, 0);
+    const diff = last14 - prev14;
+    const pct = prev14 ? Math.round((diff / prev14) * 100) : 0;
+    return { month, year, avg, diff, pct, trendText: `${diff >= 0 ? "Up" : "Down"} ${fmtMinutes(Math.abs(diff))} (${Math.abs(pct)}%) vs prior 14 days` };
+  }, [byDay, sortedDays]);
 
-    const activeDays = sortedDays.length || 1;
-    const avg = Math.round(year / activeDays);
-
-    const last28 = sortedDays.slice(-28);
-    const first14 = last28.slice(0, 14).reduce((acc, d) => acc + byDay[d].minutes, 0);
-    const last14 = last28.slice(14).reduce((acc, d) => acc + byDay[d].minutes, 0);
-    const trend = last14 >= first14 ? "Increasing" : "Decreasing";
-
-    const sessionStarts = (payload?.sessions || []).map((s) => toDate(s.start));
-    const currentHour = now.getHours();
-    const closeSessions = (payload?.sessions || []).filter((s) => {
-      const sh = toDate(s.start).getHours();
-      return Math.abs(sh - currentHour) <= 1;
+  const sessionsByWeekday = useMemo(() => {
+    const arr = weekdayNames.map((name, i) => ({ name, minutes: 0, idx: i }));
+    (payload?.sessions || []).forEach((s) => {
+      const st = new Date(s.start);
+      const et = new Date(s.end);
+      const wk = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, weekday: "short" }).format(st);
+      const d = weekdayNames.indexOf(wk);
+      if (d >= 0) arr[d].minutes += Math.round((et.getTime() - st.getTime()) / 60000);
     });
-    const pool = closeSessions.length ? closeSessions : payload?.sessions || [];
-    const predicted = pool.length
-      ? Math.round(
-          pool.reduce((acc, s) => acc + (toDate(s.end).getTime() - toDate(s.start).getTime()) / 60000, 0) /
-            pool.length
-        )
-      : 45;
-
-    const medStart = sessionStarts.length
-      ? sessionStarts
-          .sort((a, b) => a.getHours() * 60 + a.getMinutes() - (b.getHours() * 60 + b.getMinutes()))[
-          Math.floor(sessionStarts.length / 2)
-        ]
-      : now;
-
-    return { month, year, avg, trend, predicted, medStart };
-  }, [byDay, payload, sortedDays]);
-
-  const patternData = useMemo(() => {
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const data: Array<{ day: string; hour: number; count: number }> = [];
-    const counts: Record<string, number> = {};
-
-    for (const s of payload?.sessions || []) {
-      const start = toDate(s.start);
-      const key = `${start.getDay()}-${start.getHours()}`;
-      counts[key] = (counts[key] || 0) + 1;
-    }
-
-    for (let d = 0; d < 7; d += 1) {
-      for (let h = 0; h < 24; h += 1) {
-        data.push({ day: days[d], hour: h, count: counts[`${d}-${h}`] || 0 });
-      }
-    }
-
-    return data;
+    return arr;
   }, [payload]);
 
-  const maxPattern = useMemo(() => patternData.reduce((m, c) => Math.max(m, c.count), 0), [patternData]);
+  const sessionsByHour = useMemo(() => {
+    const bins = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }));
+    (payload?.sessions || []).forEach((s) => {
+      const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", hour12: false }).format(new Date(s.start)));
+      bins[hour].count += 1;
+    });
+    return bins;
+  }, [payload]);
 
   const selected = selectedDay ? byDay[selectedDay] : null;
+  const hovered = hoveredDay ? byDay[hoveredDay] : null;
 
   return (
-    <main style={{ maxWidth: 1180, margin: "0 auto", padding: 28 }}>
-      <h1>Writing Analytics</h1>
-      <p style={{ color: "var(--muted)" }}>Transforming raw sessions into deep writing momentum insights.</p>
+    <main className="journalShell">
+      <header className="hero"><h1>Writing Journal</h1><p>Quiet analytics for steady writing practice.</p></header>
 
-      {error && <p style={{ color: "#ff9aa2" }}>{error}</p>}
-
-      <section className="panel">
+      <section className="panel calendarPanel">
         <div className="toolbar">
           <div>
             <button onClick={() => setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() - 1, 1))}>←</button>
-            <strong style={{ margin: "0 8px" }}>
-              {displayDate.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-            </strong>
+            <strong>{displayDate.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong>
             <button onClick={() => setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 1))}>→</button>
           </div>
           <div>
-            <button onClick={() => setViewMode("month")} className={viewMode === "month" ? "active" : ""}>Month</button>
-            <button onClick={() => setViewMode("year")} className={viewMode === "year" ? "active" : ""}>Year</button>
+            <button className={viewMode === "month" ? "active" : ""} onClick={() => setViewMode("month")}>Month</button>
+            <button className={viewMode === "year" ? "active" : ""} onClick={() => setViewMode("year")}>Year</button>
           </div>
         </div>
 
         {viewMode === "month" ? (
-          <div className="grid month">
-            {monthDays.map((d, idx) => {
-              if (!d) return <div key={`empty-${idx}`} className="cell empty" />;
-              const k = ymd(d);
-              const min = byDay[k]?.minutes || 0;
+          <div className="monthGrid">
+            {monthDays.map((d, i) => {
+              if (!d) return <div key={i} className="day empty" />;
+              const key = ymd(d);
+              const min = byDay[key]?.minutes || 0;
               return (
-                <button
-                  key={k}
-                  className="cell"
-                  style={{ background: blockColor(min) }}
-                  title={`${k}: ${min} minutes`}
-                  onClick={() => setSelectedDay(k)}
-                >
-                  <span>{d.getDate()}</span>
+                <button key={key} className={`day ${level(min)}`} onMouseEnter={() => setHoveredDay(key)} onMouseLeave={() => setHoveredDay(null)} onClick={() => setSelectedDay(key)}>
+                  {d.getDate()}
                 </button>
               );
             })}
           </div>
         ) : (
-          <div className="grid year">
-            {yearlyCells.map((d) => {
-              const k = ymd(d);
-              const min = byDay[k]?.minutes || 0;
-              return (
-                <button
-                  key={k}
-                  className="cell yearcell"
-                  title={`${k}: ${min} minutes`}
-                  style={{ background: blockColor(min) }}
-                  onClick={() => setSelectedDay(k)}
-                />
-              );
-            })}
+          <div className="yearWrap">
+            {months.map((m) => (
+              <div key={m.name} className="monthBlock">
+                <h4>{m.name}</h4>
+                <div className="monthMiniGrid">
+                  {m.days.map((d) => {
+                    const key = ymd(d);
+                    const min = byDay[key]?.minutes || 0;
+                    return <button key={key} className={`mini ${level(min)}`} onClick={() => setSelectedDay(key)} onMouseEnter={() => setHoveredDay(key)} onMouseLeave={() => setHoveredDay(null)} />;
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hoveredDay && (
+          <div className="hoverTip">
+            <strong>{dateFmt.format(new Date(`${hoveredDay}T12:00:00Z`))}</strong>
+            <span>{fmtMinutes(hovered?.minutes || 0)} written</span>
+            <em>{statusText(hovered?.minutes || 0)}</em>
           </div>
         )}
       </section>
 
       <section className="stats">
-        <article className="panel"><h3>Avg Daily</h3><p>{fmtMinutes(stats.avg)}</p></article>
+        <article className="panel"><h3>Average Daily</h3><p>{fmtMinutes(stats.avg)}</p></article>
         <article className="panel"><h3>This Month</h3><p>{fmtMinutes(stats.month)}</p></article>
         <article className="panel"><h3>This Year</h3><p>{fmtMinutes(stats.year)}</p></article>
-        <article className="panel"><h3>Trend</h3><p>{stats.trend}</p></article>
+        <article className="panel"><h3>Trend</h3><p>{stats.trendText}</p></article>
       </section>
 
-      <section className="panel">
-        <h3>Writing Pattern (Day × Hour)</h3>
-        <div className="patternGrid">
-          {patternData.map((cell) => {
-            const intensity = maxPattern ? cell.count / maxPattern : 0;
-            const bg = cell.count
-              ? `rgba(95, 211, 188, ${Math.max(0.18, intensity)})`
-              : "rgba(31,41,71,0.7)";
-            return (
-              <div
-                key={`${cell.day}-${cell.hour}`}
-                className="patternCell"
-                style={{ background: bg }}
-                title={`${cell.day} ${String(cell.hour).padStart(2, "0")}:00 → ${cell.count} session${cell.count === 1 ? "" : "s"}`}
-              />
-            );
-          })}
+      <section className="panel chartPanel">
+        <h3>Writing by Day of Week (minutes)</h3>
+        <div className="barChart">
+          {sessionsByWeekday.map((d) => (
+            <div key={d.name} className="barCol">
+              <div className="bar" style={{ height: `${Math.max(8, d.minutes / 8)}px` }} title={`${d.name}: ${d.minutes} minutes`} />
+              <label>{d.name}</label>
+            </div>
+          ))}
         </div>
-      </section>
-
-      <section className="panel prediction">
-        If you start writing around <strong>{stats.medStart.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</strong>{" "}
-        tomorrow, you’ll likely write for <strong>~{stats.predicted} minutes</strong>.
+        <h3>Writing Start Times (session count by hour)</h3>
+        <div className="hourRow">
+          {sessionsByHour.map((h) => <div key={h.hour} className="hourBin" title={`${h.hour}:00 • ${h.count} sessions`} style={{ opacity: h.count ? Math.min(1, 0.2 + h.count / 8) : 0.12 }} />)}
+        </div>
+        <p className="axisLabel">00:00 → 23:00 (America/Los_Angeles)</p>
       </section>
 
       {selected && (
-        <dialog open className="modal" onClick={() => setSelectedDay(null)}>
+        <div className="modal" onClick={() => setSelectedDay(null)}>
           <div className="modalCard" onClick={(e) => e.stopPropagation()}>
-            <h3>{selected.date}</h3>
-            <p>Total: {fmtMinutes(selected.minutes)}</p>
-            <p>Last 7 days: {fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</p>
+            <h3>{dateFmt.format(new Date(`${selected.date}T12:00:00Z`))}</h3>
+            <p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p>
+            <p>Last 7 days (incl. selected): <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p>
             <ul>
-              {selected.sessions.map((s) => (
-                <li key={s.id}>
-                  {toDate(s.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} -{" "}
-                  {toDate(s.end).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                </li>
-              ))}
+              {selected.sessions.map((s) => <li key={s.id}>{timeFmt.format(new Date(s.start))} – {timeFmt.format(new Date(s.end))}</li>)}
             </ul>
             <button onClick={() => setSelectedDay(null)}>Close</button>
           </div>
-        </dialog>
+        </div>
       )}
-
-      <p style={{ color: "var(--muted)", marginTop: 14, fontSize: 12 }}>
-        Data source: {payload?.source || "(loading...)"} • Updated {payload?.fetchedAt ? new Date(payload.fetchedAt).toLocaleString() : "--"}
-      </p>
     </main>
   );
 }
