@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Cell, ResponsiveContainer, Tooltip, Treemap } from "recharts";
 import { aggregateDays, rollingWeekMinutes, type WritingSession } from "@/lib/writing";
 
 type ApiPayload = {
@@ -126,16 +125,26 @@ export default function Dashboard() {
   }, [byDay, payload, sortedDays]);
 
   const patternData = useMemo(() => {
-    const cells: Record<string, number> = {};
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const data: Array<{ day: string; hour: number; count: number }> = [];
+    const counts: Record<string, number> = {};
+
     for (const s of payload?.sessions || []) {
       const start = toDate(s.start);
-      const day = start.toLocaleDateString(undefined, { weekday: "short" });
-      const hour = start.getHours();
-      const key = `${day}-${hour}`;
-      cells[key] = (cells[key] || 0) + 1;
+      const key = `${start.getDay()}-${start.getHours()}`;
+      counts[key] = (counts[key] || 0) + 1;
     }
-    return Object.entries(cells).map(([name, size]) => ({ name, size }));
+
+    for (let d = 0; d < 7; d += 1) {
+      for (let h = 0; h < 24; h += 1) {
+        data.push({ day: days[d], hour: h, count: counts[`${d}-${h}`] || 0 });
+      }
+    }
+
+    return data;
   }, [payload]);
+
+  const maxPattern = useMemo(() => patternData.reduce((m, c) => Math.max(m, c.count), 0), [patternData]);
 
   const selected = selectedDay ? byDay[selectedDay] : null;
 
@@ -206,16 +215,24 @@ export default function Dashboard() {
         <article className="panel"><h3>Trend</h3><p>{stats.trend}</p></article>
       </section>
 
-      <section className="panel" style={{ height: 260 }}>
+      <section className="panel">
         <h3>Writing Pattern (Day × Hour)</h3>
-        <ResponsiveContainer width="100%" height="85%">
-          <Treemap data={patternData} dataKey="size" stroke="#0f142b" content={<></>}>
-            {patternData.map((entry, idx) => (
-              <Cell key={`${entry.name}-${idx}`} fill={["#2a355f", "#35508d", "#4a78c2", "#69c3c4"][idx % 4]} />
-            ))}
-            <Tooltip formatter={(value: number, _name, item) => [`${value} sessions`, item.payload.name]} />
-          </Treemap>
-        </ResponsiveContainer>
+        <div className="patternGrid">
+          {patternData.map((cell) => {
+            const intensity = maxPattern ? cell.count / maxPattern : 0;
+            const bg = cell.count
+              ? `rgba(95, 211, 188, ${Math.max(0.18, intensity)})`
+              : "rgba(31,41,71,0.7)";
+            return (
+              <div
+                key={`${cell.day}-${cell.hour}`}
+                className="patternCell"
+                style={{ background: bg }}
+                title={`${cell.day} ${String(cell.hour).padStart(2, "0")}:00 → ${cell.count} session${cell.count === 1 ? "" : "s"}`}
+              />
+            );
+          })}
+        </div>
       </section>
 
       <section className="panel prediction">
