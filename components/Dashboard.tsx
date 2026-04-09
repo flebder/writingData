@@ -11,7 +11,6 @@ const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "
 const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 const fmtMinutes = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`);
 const level = (min: number) => (!min ? "none" : min < 30 ? "below" : min < 60 ? "baseline" : min < 120 ? "goal" : "super");
-
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const ordinal = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? `${n}st` : n % 10 === 2 && n % 100 !== 12 ? `${n}nd` : n % 10 === 3 && n % 100 !== 13 ? `${n}rd` : `${n}th`);
 const monthOrdinal = (s: string) => {
@@ -34,7 +33,12 @@ export default function Dashboard() {
     fetch("/api/sessions").then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
   }, []);
   useEffect(() => {
-    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setSelectedDay(null);
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedDay(null);
+        setExpanded(null);
+      }
+    };
     window.addEventListener("keydown", onEsc);
     return () => window.removeEventListener("keydown", onEsc);
   }, []);
@@ -110,9 +114,17 @@ export default function Dashboard() {
       bestMonth,
       bestYear,
       trendText: `You’re writing ${fmtMinutes(Math.abs(diff))} ${diff >= 0 ? "more" : "less"} per day compared to two weeks ago${dailyPrev ? ` (${Math.abs(pct)}% ${diff >= 0 ? "more" : "less"})` : ""}.`,
-      trendMeta: { dailyNow, dailyPrev, currentWeekDays, previousWeekDays, diff, pct },
+      trendMeta: { dailyNow, dailyPrev, currentWeekDays, previousWeekDays, diff },
       motivation: `If you start writing tomorrow at ${humanStart}, you’re likely to write for ${predicted} minutes.`,
-      motivationMeta: { weekday: tomorrow.toLocaleDateString("en-US", { weekday: "long" }), dataPoints: sample.length, medianStart, avgDuration: predicted }
+      motivationMeta: {
+        weekday: tomorrow.toLocaleDateString("en-US", { weekday: "long" }),
+        dataPoints: sample.length,
+        medianStart,
+        avgDuration: predicted,
+        source: "Historical sessions from your sheet for the same weekday.",
+        startExamples: sample.slice(0, 5).map((s) => timeFmt.format(new Date(s.start))),
+        durations: sample.slice(0, 5).map((s) => Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000))
+      }
     };
   }, [byDay, payload, sortedDays]);
 
@@ -153,9 +165,7 @@ export default function Dashboard() {
   }, [payload]);
 
   const lineData = useMemo(() => {
-    if (viewMode === "month") {
-      return monthDays.filter(Boolean).map((d) => ({ label: String((d as Date).getDate()), date: ymd(d as Date), minutes: byDay[ymd(d as Date)]?.minutes || 0 }));
-    }
+    if (viewMode === "month") return monthDays.filter(Boolean).map((d) => ({ label: String((d as Date).getDate()), date: ymd(d as Date), minutes: byDay[ymd(d as Date)]?.minutes || 0 }));
     const start = new Date(displayDate.getFullYear(), 0, 1);
     const end = new Date(displayDate.getFullYear(), 11, 31);
     const rows: Array<{ label: string; date: string; minutes: number }> = [];
@@ -182,10 +192,8 @@ export default function Dashboard() {
         <div className="toolbar">
           <div className="navBlock"><button onClick={moveBack}>←</button><strong>{viewMode === "year" ? displayDate.getFullYear() : displayDate.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong><button onClick={moveNext}>→</button></div>
           <div className="modeSwitch">
-            <button className={viewMode === "month" ? "active" : ""} onClick={() => setViewMode("month")}>Month View</button>
-            <button className={viewMode === "year" ? "active" : ""} onClick={() => setViewMode("year")}>Year View</button>
-            <button className={calendarMode === "grid" ? "active" : ""} onClick={() => setCalendarMode("grid")}>Grid</button>
-            <button className={calendarMode === "line" ? "active" : ""} onClick={() => setCalendarMode("line")}>Line</button>
+            <button className="active" onClick={() => setViewMode(viewMode === "month" ? "year" : "month")}>{viewMode === "month" ? "Month View" : "Year View"}</button>
+            <button className="active" onClick={() => setCalendarMode(calendarMode === "grid" ? "line" : "grid")}>{calendarMode === "grid" ? "Grid" : "Line"}</button>
           </div>
         </div>
 
@@ -204,15 +212,13 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="lineWrap">
-            <svg viewBox="0 0 100 40" className="lineChartAlt">
-              <polyline fill="none" stroke="#2f7f61" strokeWidth="1.6" points={lineData.map((p, i) => `${(i / Math.max(1, lineData.length - 1)) * 100},${38 - (p.minutes / maxLine) * 32}`).join(" ")} />
-              {lineData.map((p, i) => <circle key={`${p.label}-${i}`} cx={(i / Math.max(1, lineData.length - 1)) * 100} cy={38 - (p.minutes / maxLine) * 32} r="1.1" fill="#2f7f61" onMouseEnter={(e) => viewMode === "month" && setHover({ day: p.date, x: e.clientX, y: e.clientY })} onMouseMove={(e) => viewMode === "month" && setHover({ day: p.date, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />)}
+            <svg viewBox="0 0 100 42" className="lineChartAlt">
+              <line x1="7" y1="2" x2="7" y2="38" stroke="#a9b8ad" strokeWidth="0.4" />
+              <line x1="7" y1="38" x2="98" y2="38" stroke="#a9b8ad" strokeWidth="0.4" />
+              <polyline fill="none" stroke="#2f7f61" strokeWidth="1.4" points={lineData.map((p, i) => `${7 + (i / Math.max(1, lineData.length - 1)) * 91},${38 - (p.minutes / maxLine) * 32}`).join(" ")} />
+              {lineData.map((p, i) => <circle key={`${p.label}-${i}`} cx={7 + (i / Math.max(1, lineData.length - 1)) * 91} cy={38 - (p.minutes / maxLine) * 32} r={viewMode === "year" ? "0.6" : "1.1"} fill="#2f7f61" onMouseEnter={(e) => viewMode === "month" && setHover({ day: p.date, x: e.clientX, y: e.clientY })} onMouseMove={(e) => viewMode === "month" && setHover({ day: p.date, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />)}
             </svg>
-            <div className="lineAxis">
-              {viewMode === "month"
-                ? lineData.filter((_, i) => i % 3 === 0 || i === lineData.length - 1).map((p) => <span key={p.label}>{p.label.split("-")[2]}</span>)
-                : Array.from({ length: 12 }, (_, i) => <span key={i}>{new Date(displayDate.getFullYear(), i, 1).toLocaleDateString(undefined, { month: "short" })}</span>)}
-            </div>
+            <div className="lineAxis">{viewMode === "month" ? lineData.filter((_, i) => i % 5 === 0 || i === lineData.length - 1).map((p) => <span key={p.label}>{p.label.split("-")[2]}</span>) : Array.from({ length: 12 }, (_, i) => <span key={i}>{new Date(displayDate.getFullYear(), i, 1).toLocaleDateString(undefined, { month: "short" })}</span>)}</div>
             <p className="axisLabel">X-axis: {viewMode === "month" ? "day of month" : "day of year"} · Y-axis: writing time</p>
           </div>
         )}
@@ -224,14 +230,11 @@ export default function Dashboard() {
         <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.avg)}</p></article>
         <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.month)}</p></article>
         <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.year)}</p></article>
-        <article className="panel"><h3>Best Day This Month</h3><p>({monthOrdinal(stats.bestMonth.date)}) <small>{fmtMinutes(stats.bestMonth.minutes)}</small></p></article>
-        <article className="panel"><h3>Best Day This Year</h3><p>({monthOrdinal(stats.bestYear.date)}) <small>{fmtMinutes(stats.bestYear.minutes)}</small></p></article>
+        <article className="panel"><h3>Best Day This Month</h3><p>{monthOrdinal(stats.bestMonth.date)}</p><small>{fmtMinutes(stats.bestMonth.minutes)}</small></article>
+        <article className="panel"><h3>Best Day This Year</h3><p>{monthOrdinal(stats.bestYear.date)}</p><small>{fmtMinutes(stats.bestYear.minutes)}</small></article>
       </section>
 
-      <section className="stats secondaryStats">
-        <article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>{stats.trendText}</p></article>
-        <article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>{stats.motivation}</p></article>
-      </section>
+      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>{stats.trendText}</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>{stats.motivation}</p></article></section>
 
       <section className="panel chartPanel">
         <h3>Average writing time by weekday</h3>
@@ -244,32 +247,10 @@ export default function Dashboard() {
       </section>
 
       {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{dateFmt.format(new Date(`${selected.date}T12:00:00Z`))}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p><p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{selected.sessions.map((s) => <li key={s.id}>{timeFmt.format(new Date(s.start))} – {timeFmt.format(new Date(s.end))}</li>)}</ul></div></div>}
-      {expanded === "trend" && (
-        <div className="modal" onClick={() => setExpanded(null)}>
-          <div className="modalCard" onClick={(e) => e.stopPropagation()}>
-            <button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button>
-            <h3>Trend details</h3>
-            <p>Current 7-day average: <strong>{fmtMinutes(stats.trendMeta.dailyNow)}</strong></p>
-            <p>Comparison 7-day average: <strong>{fmtMinutes(stats.trendMeta.dailyPrev)}</strong></p>
-            <p>Current period: {stats.trendMeta.currentWeekDays[0]} to {stats.trendMeta.currentWeekDays.at(-1)}</p>
-            <p>Comparison period: {stats.trendMeta.previousWeekDays[0]} to {stats.trendMeta.previousWeekDays.at(-1)}</p>
-            <p>Difference = {fmtMinutes(stats.trendMeta.dailyNow)} - {fmtMinutes(stats.trendMeta.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trendMeta.diff))} {stats.trendMeta.diff >= 0 ? "more" : "less"} per day</strong>.</p>
-          </div>
-        </div>
-      )}
-      {expanded === "motivation" && (
-        <div className="modal" onClick={() => setExpanded(null)}>
-          <div className="modalCard" onClick={(e) => e.stopPropagation()}>
-            <button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button>
-            <h3>Motivation details</h3>
-            <p>Day used: <strong>{stats.motivationMeta.weekday}</strong></p>
-            <p>Data points used: <strong>{stats.motivationMeta.dataPoints}</strong></p>
-            <p>Typical start time cluster: around <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivationMeta.medianStart/60),stats.motivationMeta.medianStart%60)))}</strong></p>
-            <p>Average duration for similar starts: <strong>{fmtMinutes(stats.motivationMeta.avgDuration)}</strong></p>
-            <p>Method: We selected tomorrow’s weekday history and averaged durations from sessions that started near your typical time for that weekday.</p>
-          </div>
-        </div>
-      )}
+
+      {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p>Current 7-day average: <strong>{fmtMinutes(stats.trendMeta.dailyNow)}</strong></p><p>Comparison 7-day average: <strong>{fmtMinutes(stats.trendMeta.dailyPrev)}</strong></p><p>Current period: {stats.trendMeta.currentWeekDays[0]} to {stats.trendMeta.currentWeekDays.at(-1)}</p><p>Comparison period: {stats.trendMeta.previousWeekDays[0]} to {stats.trendMeta.previousWeekDays.at(-1)}</p><p>Difference = {fmtMinutes(stats.trendMeta.dailyNow)} - {fmtMinutes(stats.trendMeta.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trendMeta.diff))} {stats.trendMeta.diff >= 0 ? "more" : "less"} per day</strong>.</p></div></div>}
+
+      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p>Day used: <strong>{stats.motivationMeta.weekday}</strong></p><p>Data source: <strong>{stats.motivationMeta.source}</strong></p><p>Data points used: <strong>{stats.motivationMeta.dataPoints}</strong></p><p>Typical start time cluster: around <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivationMeta.medianStart/60),stats.motivationMeta.medianStart%60)))}</strong></p><p>Average duration for similar starts: <strong>{fmtMinutes(stats.motivationMeta.avgDuration)}</strong></p><p>Typical starts sampled: {stats.motivationMeta.startExamples.join(", ") || "n/a"}</p><p>Sample durations (min): {stats.motivationMeta.durations.join(", ") || "n/a"}</p><p>Method: We selected tomorrow’s weekday history and averaged durations from sessions that started near your typical time for that weekday.</p></div></div>}
     </main>
   );
 }
