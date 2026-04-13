@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { aggregateDays, rollingWeekMinutes, WRITING_TZ, type WritingSession } from "@/lib/writing";
+import { aggregateDays, getHourInWritingTz, getYmdInWritingTz, rollingWeekMinutes, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
+import { calculateDashboardStats } from "@/lib/stats";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
 type ViewMode = "month" | "year";
@@ -11,7 +12,7 @@ const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "
 const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 const fmtMinutes = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`);
 const level = (min: number) => (!min ? "none" : min < 30 ? "below" : min < 60 ? "baseline" : min < 120 ? "goal" : "super");
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const ymd = (d: Date) => getYmdInWritingTz(d);
 const ordinal = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? `${n}st` : n % 10 === 2 && n % 100 !== 12 ? `${n}nd` : n % 10 === 3 && n % 100 !== 13 ? `${n}rd` : `${n}th`);
 const monthOrdinal = (s: string) => {
   if (!s || s === "-") return "-";
@@ -44,7 +45,6 @@ export default function Dashboard() {
   }, []);
 
   const byDay = useMemo(() => aggregateDays(payload?.sessions || []), [payload]);
-  const sortedDays = useMemo(() => Object.keys(byDay).sort(), [byDay]);
 
   const monthDays = useMemo(() => {
     const y = displayDate.getFullYear();
@@ -61,80 +61,17 @@ export default function Dashboard() {
     return Array.from({ length: 12 }, (_, m) => ({ month: m, name: new Date(y, m, 1).toLocaleDateString(undefined, { month: "long" }), days: Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => new Date(y, m, i + 1)) }));
   }, [displayDate]);
 
-  const stats = useMemo(() => {
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    let month = 0;
-    let year = 0;
-    let bestMonth = { date: "-", minutes: 0 };
-    let bestYear = { date: "-", minutes: 0 };
-    for (const [d, v] of Object.entries(byDay)) {
-      if (d.startsWith(thisMonth)) {
-        month += v.minutes;
-        if (v.minutes > bestMonth.minutes) bestMonth = { date: d, minutes: v.minutes };
-      }
-      if (d.startsWith(String(now.getFullYear()))) {
-        year += v.minutes;
-        if (v.minutes > bestYear.minutes) bestYear = { date: d, minutes: v.minutes };
-      }
-    }
-    const avg = sortedDays.length ? Math.round(year / sortedDays.length) : 0;
-
-    const currentWeekDays = sortedDays.slice(-7);
-    const previousWeekDays = sortedDays.slice(-14, -7);
-    const weekNow = currentWeekDays.reduce((a, d) => a + byDay[d].minutes, 0);
-    const weekPrev = previousWeekDays.reduce((a, d) => a + byDay[d].minutes, 0);
-    const dailyNow = Math.round(weekNow / 7);
-    const dailyPrev = Math.round(weekPrev / 7);
-    const diff = dailyNow - dailyPrev;
-    const pct = dailyPrev ? Math.round((diff / dailyPrev) * 100) : 0;
-
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    const dow = tomorrow.getDay();
-    const sameDaySessions = (payload?.sessions || []).filter((s) => new Date(s.start).getDay() === dow);
-    const starts = sameDaySessions.map((s) => {
-      const d = new Date(s.start);
-      return d.getHours() * 60 + d.getMinutes();
-    }).sort((a, b) => a - b);
-    const medianStart = starts.length ? starts[Math.floor(starts.length / 2)] : 9 * 60;
-    const similar = sameDaySessions.filter((s) => {
-      const d = new Date(s.start);
-      const m = d.getHours() * 60 + d.getMinutes();
-      return Math.abs(m - medianStart) <= 90;
-    });
-    const sample = similar.length >= 3 ? similar : sameDaySessions;
-    const predicted = sample.length ? Math.round(sample.reduce((a, s) => a + (new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000, 0) / sample.length) : 45;
-    const humanStart = timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(medianStart / 60), medianStart % 60)));
-
-    return {
-      avg,
-      month,
-      year,
-      bestMonth,
-      bestYear,
-      trendText: `You’re writing ${fmtMinutes(Math.abs(diff))} ${diff >= 0 ? "more" : "less"} per day compared to two weeks ago${dailyPrev ? ` (${Math.abs(pct)}% ${diff >= 0 ? "more" : "less"})` : ""}.`,
-      trendMeta: { dailyNow, dailyPrev, currentWeekDays, previousWeekDays, diff },
-      motivation: `If you start writing tomorrow at ${humanStart}, you’re likely to write for ${predicted} minutes.`,
-      motivationMeta: {
-        weekday: tomorrow.toLocaleDateString("en-US", { weekday: "long" }),
-        dataPoints: sample.length,
-        medianStart,
-        avgDuration: predicted,
-        source: "Historical sessions from your sheet for the same weekday.",
-        startExamples: sample.slice(0, 5).map((s) => timeFmt.format(new Date(s.start))),
-        durations: sample.slice(0, 5).map((s) => Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000))
-      }
-    };
-  }, [byDay, payload, sortedDays]);
+  const stats = useMemo(() => calculateDashboardStats(payload?.sessions || []), [payload]);
 
   const weekdayBars = useMemo(() => {
     const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const rows = names.map((name) => ({ name, total: 0, count: 0, avg: 0 }));
     for (const [d, b] of Object.entries(byDay)) {
-      const idx = new Date(`${d}T12:00:00Z`).getUTCDay();
-      rows[idx].total += b.minutes;
-      rows[idx].count += 1;
+      const idx = new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: WRITING_TZ, weekday: "short" });
+      const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      const rowIdx = map[idx] ?? 0;
+      rows[rowIdx].total += b.minutes;
+      rows[rowIdx].count += 1;
     }
     rows.forEach((r) => (r.avg = r.count ? Math.round(r.total / r.count) : 0));
     return rows;
@@ -147,11 +84,11 @@ export default function Dashboard() {
       const et = new Date(s.end);
       let cursor = new Date(st);
       while (cursor < et) {
-        const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", hour12: false }).format(cursor));
-        const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: WRITING_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(cursor);
-        const nextHour = new Date(cursor);
-        nextHour.setMinutes(60, 0, 0);
-        const end = nextHour < et ? nextHour : et;
+        const h = getHourInWritingTz(cursor);
+        const dayKey = getYmdInWritingTz(cursor);
+        const [yy, mm, dd] = dayKey.split("-").map(Number);
+        const nextHourUtc = zonedLocalToUtc(yy, mm, dd, h + 1, 0, 0);
+        const end = nextHourUtc < et ? nextHourUtc : et;
         bins[h].days.add(dayKey);
         bins[h].totalMinutes += Math.max(1, Math.round((end.getTime() - cursor.getTime()) / 60000));
         cursor = end;
@@ -227,14 +164,14 @@ export default function Dashboard() {
       </section>
 
       <section className="stats">
-        <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.avg)}</p></article>
-        <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.month)}</p></article>
-        <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.year)}</p></article>
-        <article className="panel"><h3>Best Day This Month</h3><p>{monthOrdinal(stats.bestMonth.date)}</p><small>{fmtMinutes(stats.bestMonth.minutes)}</small></article>
-        <article className="panel"><h3>Best Day This Year</h3><p>{monthOrdinal(stats.bestYear.date)}</p><small>{fmtMinutes(stats.bestYear.minutes)}</small></article>
+        <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.dailyAverage)}</p></article>
+        <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.monthlyTotal)}</p></article>
+        <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.yearlyTotal)}</p></article>
+        <article className="panel"><h3>Best Day This Month</h3><p>{monthOrdinal(stats.bestDayThisMonth.date)}</p><small>{fmtMinutes(stats.bestDayThisMonth.minutes)}</small></article>
+        <article className="panel"><h3>Best Day This Year</h3><p>{monthOrdinal(stats.bestDayThisYear.date)}</p><small>{fmtMinutes(stats.bestDayThisYear.minutes)}</small></article>
       </section>
 
-      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>{stats.trendText}</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>{stats.motivation}</p></article></section>
+      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>You’re writing {fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"} per day compared to the prior week{stats.trend.dailyPrev ? ` (${Math.abs(stats.trend.pct)}% ${stats.trend.diff >= 0 ? "more" : "less"})` : ""}.</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>If you start writing tomorrow at {timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.medianStart / 60), stats.motivation.medianStart % 60)))}, you’re likely to write for {stats.motivation.avgDuration} minutes.</p></article></section>
 
       <section className="panel chartPanel">
         <h3>Average writing time by weekday</h3>
@@ -248,9 +185,9 @@ export default function Dashboard() {
 
       {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{dateFmt.format(new Date(`${selected.date}T12:00:00Z`))}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p><p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{selected.sessions.map((s) => <li key={s.id}>{timeFmt.format(new Date(s.start))} – {timeFmt.format(new Date(s.end))}</li>)}</ul></div></div>}
 
-      {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p>Current 7-day average: <strong>{fmtMinutes(stats.trendMeta.dailyNow)}</strong></p><p>Comparison 7-day average: <strong>{fmtMinutes(stats.trendMeta.dailyPrev)}</strong></p><p>Current period: {stats.trendMeta.currentWeekDays[0]} to {stats.trendMeta.currentWeekDays.at(-1)}</p><p>Comparison period: {stats.trendMeta.previousWeekDays[0]} to {stats.trendMeta.previousWeekDays.at(-1)}</p><p>Difference = {fmtMinutes(stats.trendMeta.dailyNow)} - {fmtMinutes(stats.trendMeta.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trendMeta.diff))} {stats.trendMeta.diff >= 0 ? "more" : "less"} per day</strong>.</p></div></div>}
+      {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p>Current 7-day average: <strong>{fmtMinutes(stats.trend.dailyNow)}</strong></p><p>Comparison 7-day average: <strong>{fmtMinutes(stats.trend.dailyPrev)}</strong></p><p>Current period: {stats.trend.currentPeriod[0]} to {stats.trend.currentPeriod.at(-1)}</p><p>Comparison period: {stats.trend.previousPeriod[0]} to {stats.trend.previousPeriod.at(-1)}</p><p>Difference = {fmtMinutes(stats.trend.dailyNow)} - {fmtMinutes(stats.trend.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"} per day</strong>.</p></div></div>}
 
-      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p>Day used: <strong>{stats.motivationMeta.weekday}</strong></p><p>Data source: <strong>{stats.motivationMeta.source}</strong></p><p>Data points used: <strong>{stats.motivationMeta.dataPoints}</strong></p><p>Typical start time cluster: around <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivationMeta.medianStart/60),stats.motivationMeta.medianStart%60)))}</strong></p><p>Average duration for similar starts: <strong>{fmtMinutes(stats.motivationMeta.avgDuration)}</strong></p><p>Typical starts sampled: {stats.motivationMeta.startExamples.join(", ") || "n/a"}</p><p>Sample durations (min): {stats.motivationMeta.durations.join(", ") || "n/a"}</p><p>Method: We selected tomorrow’s weekday history and averaged durations from sessions that started near your typical time for that weekday.</p></div></div>}
+      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p>Day used: <strong>{stats.motivation.weekday}</strong></p><p>Data source: <strong>Historical sessions from your sheet for the same weekday.</strong></p><p>Data points used: <strong>{stats.motivation.dataPoints}</strong></p><p>Typical start time cluster: around <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.medianStart/60),stats.motivation.medianStart%60)))}</strong></p><p>Average duration for similar starts: <strong>{fmtMinutes(stats.motivation.avgDuration)}</strong></p><p>Typical starts sampled: {stats.motivation.startExamples.join(", ") || "n/a"}</p><p>Sample durations (min): {stats.motivation.durations.join(", ") || "n/a"}</p><p>Method: We selected tomorrow’s weekday history and averaged durations from sessions that started near your typical time for that weekday.</p></div></div>}
     </main>
   );
 }
