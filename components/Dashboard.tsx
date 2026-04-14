@@ -13,7 +13,6 @@ type LinePoint = {
   tooltipLabel: string;
   date: string;
   minutes: number;
-  pointType: "day" | "week";
 };
 
 const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", minute: "2-digit" });
@@ -48,8 +47,7 @@ function buildMonthLineData(monthDays: Array<Date | null>, byDay: Record<string,
         label: String(day.getDate()),
         tooltipLabel: dateFmt.format(new Date(`${key}T12:00:00Z`)),
         date: key,
-        minutes: byDay[key]?.minutes || 0,
-        pointType: "day"
+        minutes: byDay[key]?.minutes || 0
       };
     });
 }
@@ -77,8 +75,7 @@ function buildYearLineData(year: number, byDay: Record<string, { minutes: number
       label: weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
       tooltipLabel: `${weekLabel} (${year})`,
       date: weekStartYmd,
-      minutes: weekMinutes,
-      pointType: "week"
+      minutes: weekMinutes
     });
   }
 
