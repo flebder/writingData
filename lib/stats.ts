@@ -8,7 +8,7 @@ import {
   type WritingSession,
   yearKeyFromYmd
 } from "@/lib/writing";
-import { buildWritingRecommendation } from "@/lib/recommendation";
+import { buildWritingRecommendation, DEFAULT_RECOMMENDATION_POLICY } from "@/lib/recommendation";
 
 export type DashboardStats = {
   dailyAverage: number;
@@ -30,17 +30,18 @@ export type DashboardStats = {
     dataPoints: number;
     suggestedStartMinutes: number;
     suggestedDurationMinutes: number;
-    confidence: "high" | "medium" | "low";
     reason: string;
     headline: string;
     detail: string;
   };
 };
 
-function confidenceLabel(confidence: "high" | "medium" | "low"): string {
-  if (confidence === "high") return "high-confidence";
-  if (confidence === "medium") return "solid";
-  return "light";
+function formatClock(minuteOfDay: number): string {
+  return new Date(Date.UTC(2026, 0, 1, Math.floor(minuteOfDay / 60), minuteOfDay % 60)).toLocaleTimeString("en-US", {
+    timeZone: WRITING_TZ,
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 
 export function calculateDashboardStats(sessions: WritingSession[], now = new Date()): DashboardStats {
@@ -79,13 +80,8 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
   const diff = dailyNow - dailyPrev;
   const pct = dailyPrev ? Math.round((diff / dailyPrev) * 100) : 0;
 
-  const recommendation = buildWritingRecommendation(sessions, now);
+  const recommendation = buildWritingRecommendation(sessions, now, DEFAULT_RECOMMENDATION_POLICY);
   const targetLabel = recommendation.target === "today" ? "today" : "tomorrow";
-  const clock = new Date(Date.UTC(2026, 0, 1, Math.floor(recommendation.suggestedStartMinutes / 60), recommendation.suggestedStartMinutes % 60)).toLocaleTimeString("en-US", {
-    timeZone: WRITING_TZ,
-    hour: "numeric",
-    minute: "2-digit"
-  });
 
   return {
     dailyAverage,
@@ -100,10 +96,9 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
       dataPoints: recommendation.dataPoints,
       suggestedStartMinutes: recommendation.suggestedStartMinutes,
       suggestedDurationMinutes: recommendation.suggestedDurationMinutes,
-      confidence: recommendation.confidence,
       reason: recommendation.reason,
-      headline: `Best ${targetLabel} start: ${clock}`,
-      detail: `Aim for about ${recommendation.suggestedDurationMinutes} minutes. This is a ${confidenceLabel(recommendation.confidence)} recommendation from your ${recommendation.dataPoints || "available"} historical sessions.`
+      headline: `Write ${targetLabel} at ${formatClock(recommendation.suggestedStartMinutes)} for about ${recommendation.suggestedDurationMinutes} minutes.`,
+      detail: recommendation.evidence
     }
   };
 }

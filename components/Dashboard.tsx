@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { aggregateDays, getHourInWritingTz, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
+import { addDaysToYmd, aggregateDays, getHourInWritingTz, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
@@ -15,6 +15,7 @@ type LinePoint = {
   minutes: number;
   pointType: "day" | "week";
 };
+type AxisTick = { label: string; index: number };
 
 const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", minute: "2-digit" });
 const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -56,33 +57,56 @@ function buildMonthLineData(monthDays: Array<Date | null>, byDay: Record<string,
 
 function buildYearLineData(year: number, byDay: Record<string, { minutes: number }>): LinePoint[] {
   const rows: LinePoint[] = [];
-  let cursor = new Date(Date.UTC(year, 0, 1));
-  const end = new Date(Date.UTC(year, 11, 31));
+  let cursor = `${year}-01-01`;
+  const end = `${year}-12-31`;
 
   while (cursor <= end) {
-    const weekStart = new Date(cursor);
-    const labelStart = ymd(weekStart);
+    const weekStartYmd = cursor;
     let weekMinutes = 0;
 
     for (let i = 0; i < 7 && cursor <= end; i += 1) {
-      const key = ymd(cursor);
-      weekMinutes += byDay[key]?.minutes || 0;
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() + 1));
+      weekMinutes += byDay[cursor]?.minutes || 0;
+      cursor = addDaysToYmd(cursor, 1);
     }
 
-    const weekEnd = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate() - 1));
-    const weekLabel = `${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}–${weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`;
+    const weekStart = new Date(`${weekStartYmd}T12:00:00Z`);
+    const weekEndYmd = addDaysToYmd(cursor, -1);
+    const weekEnd = new Date(`${weekEndYmd}T12:00:00Z`);
+    const weekLabel = `${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}–${weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 
     rows.push({
       label: weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
       tooltipLabel: `${weekLabel} (${year})`,
-      date: labelStart,
+      date: weekStartYmd,
       minutes: weekMinutes,
       pointType: "week"
     });
   }
 
   return rows;
+}
+
+function getXAxisTicks(lineData: LinePoint[], viewMode: ViewMode): AxisTick[] {
+  if (!lineData.length) return [];
+  if (viewMode === "month") {
+    return lineData
+      .filter((_, i) => i % 5 === 0 || i === lineData.length - 1)
+      .map((item, index) => ({ label: item.label, index: lineData.findIndex((d) => d.date === item.date) }));
+  }
+
+  const ticks: AxisTick[] = [];
+  let lastMonth = "";
+  lineData.forEach((item, idx) => {
+    const monthKey = item.date.slice(0, 7);
+    if (monthKey !== lastMonth) {
+      ticks.push({
+        label: new Date(`${item.date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short" }),
+        index: idx
+      });
+      lastMonth = monthKey;
+    }
+  });
+  return ticks;
 }
 
 export default function Dashboard() {
@@ -174,12 +198,7 @@ export default function Dashboard() {
     return buildYearLineData(displayDate.getFullYear(), byDay);
   }, [viewMode, monthDays, byDay, displayDate]);
 
-  const axisTicks = useMemo(() => {
-    if (!lineData.length) return [] as LinePoint[];
-    if (viewMode === "month") return lineData.filter((_, i) => i % 5 === 0 || i === lineData.length - 1);
-    const step = Math.max(1, Math.floor(lineData.length / 6));
-    return lineData.filter((_, i) => i % step === 0 || i === lineData.length - 1);
-  }, [lineData, viewMode]);
+  const axisTicks = useMemo(() => getXAxisTicks(lineData, viewMode), [lineData, viewMode]);
 
   const moveBack = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() - 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() - 1, 1));
   const moveNext = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() + 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 1));
@@ -225,7 +244,12 @@ export default function Dashboard() {
               {viewMode === "month" && lineData.map((p, i) => <circle key={`${p.label}-${i}`} cx={7 + (i / Math.max(1, lineData.length - 1)) * 91} cy={38 - (p.minutes / maxLine) * 32} r="1" fill="#2f7f61" onMouseEnter={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseLeave={() => setLineHover(null)} />)}
               {viewMode === "year" && lineData.map((p, i) => <rect key={`${p.label}-${i}`} x={7 + (i / Math.max(1, lineData.length - 1)) * 91 - 0.5} y={0} width={1} height={42} fill="transparent" onMouseEnter={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseLeave={() => setLineHover(null)} />)}
             </svg>
-            <div className="lineAxis">{axisTicks.map((p, i) => <span key={`${p.label}-${i}`}>{viewMode === "month" ? p.label : p.label.split(" ")[0]}</span>)}</div>
+            <div className="lineAxis">
+              {axisTicks.map((tick) => {
+                const pct = lineData.length > 1 ? (tick.index / (lineData.length - 1)) * 100 : 0;
+                return <span key={`${tick.label}-${tick.index}`} style={{ left: `${pct}%` }}>{tick.label}</span>;
+              })}
+            </div>
             <p className="axisLabel">X-axis: {viewMode === "month" ? "day of month" : "weekly aggregates"} · Y-axis: writing time</p>
           </div>
         )}
@@ -258,7 +282,7 @@ export default function Dashboard() {
 
       {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p>Current 7-day average: <strong>{fmtMinutes(stats.trend.dailyNow)}</strong></p><p>Comparison 7-day average: <strong>{fmtMinutes(stats.trend.dailyPrev)}</strong></p><p>Current period: {stats.trend.currentPeriod[0]} to {stats.trend.currentPeriod.at(-1)}</p><p>Comparison period: {stats.trend.previousPeriod[0]} to {stats.trend.previousPeriod.at(-1)}</p><p>Difference = {fmtMinutes(stats.trend.dailyNow)} - {fmtMinutes(stats.trend.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"} per day</strong>.</p></div></div>}
 
-      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p>Target day: <strong>{stats.motivation.target === "today" ? "Today" : "Tomorrow"} ({stats.motivation.weekday})</strong></p><p>Suggested start: <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.suggestedStartMinutes/60),stats.motivation.suggestedStartMinutes%60)))}</strong></p><p>Suggested duration: <strong>{fmtMinutes(stats.motivation.suggestedDurationMinutes)}</strong></p><p>Confidence: <strong>{stats.motivation.confidence}</strong></p><p>Data points used: <strong>{stats.motivation.dataPoints}</strong></p><p>Method: Buckets nearby start times and scores them using frequency, total minutes, average duration, and recency weighting.</p></div></div>}
+      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p>Target day: <strong>{stats.motivation.target === "today" ? "Today" : "Tomorrow"} ({stats.motivation.weekday})</strong></p><p>Suggested start: <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.suggestedStartMinutes/60),stats.motivation.suggestedStartMinutes%60)))}</strong></p><p>Suggested duration: <strong>{fmtMinutes(stats.motivation.suggestedDurationMinutes)}</strong></p><p>Data points used: <strong>{stats.motivation.dataPoints}</strong></p><p>{stats.motivation.detail}</p></div></div>}
     </main>
   );
 }
