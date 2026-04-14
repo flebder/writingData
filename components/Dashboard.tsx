@@ -171,6 +171,8 @@ export default function Dashboard() {
     return buildYearLineData(displayDate.getFullYear(), byDay);
   }, [viewMode, monthDays, byDay, displayDate]);
 
+  const axisTicks = useMemo(() => getXAxisTicks(lineData, viewMode), [lineData, viewMode]);
+
   const moveBack = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() - 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() - 1, 1));
   const moveNext = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() + 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 1));
 
