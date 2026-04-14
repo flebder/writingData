@@ -1,15 +1,14 @@
 import {
   addDaysToYmd,
   aggregateDays,
-  averageDurationMinutes,
   getCalendarRange,
-  getHourInWritingTz,
-  getMinuteInWritingTz,
   monthKeyFromYmd,
   todayYmdInWritingTz,
+  WRITING_TZ,
   type WritingSession,
   yearKeyFromYmd
 } from "@/lib/writing";
+import { buildWritingRecommendation } from "@/lib/recommendation";
 
 export type DashboardStats = {
   dailyAverage: number;
@@ -26,16 +25,23 @@ export type DashboardStats = {
     previousPeriod: string[];
   };
   motivation: {
+    target: "today" | "tomorrow";
     weekday: string;
     dataPoints: number;
-    medianStart: number;
-    avgDuration: number;
-    startExamples: string[];
-    durations: number[];
+    suggestedStartMinutes: number;
+    suggestedDurationMinutes: number;
+    confidence: "high" | "medium" | "low";
+    reason: string;
+    headline: string;
+    detail: string;
   };
 };
 
-const timeLabel = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" });
+function confidenceLabel(confidence: "high" | "medium" | "low"): string {
+  if (confidence === "high") return "high-confidence";
+  if (confidence === "medium") return "solid";
+  return "light";
+}
 
 export function calculateDashboardStats(sessions: WritingSession[], now = new Date()): DashboardStats {
   const byDay = aggregateDays(sessions);
@@ -73,27 +79,13 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
   const diff = dailyNow - dailyPrev;
   const pct = dailyPrev ? Math.round((diff / dailyPrev) * 100) : 0;
 
-  const tomorrow = new Date(now);
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  const tomorrowWeekday = tomorrow.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/Los_Angeles" });
-  const sameWeekday = sessions.filter(
-    (session) => new Date(session.start).toLocaleDateString("en-US", { weekday: "long", timeZone: "America/Los_Angeles" }) === tomorrowWeekday
-  );
-
-  const starts = sameWeekday
-    .map((s) => {
-      const d = new Date(s.start);
-      return getHourInWritingTz(d) * 60 + getMinuteInWritingTz(d);
-    })
-    .sort((a, b) => a - b);
-
-  const medianStart = starts.length ? starts[Math.floor(starts.length / 2)] : 9 * 60;
-  const clustered = sameWeekday.filter((s) => {
-    const d = new Date(s.start);
-    const minuteOfDay = getHourInWritingTz(d) * 60 + getMinuteInWritingTz(d);
-    return Math.abs(minuteOfDay - medianStart) <= 90;
+  const recommendation = buildWritingRecommendation(sessions, now);
+  const targetLabel = recommendation.target === "today" ? "today" : "tomorrow";
+  const clock = new Date(Date.UTC(2026, 0, 1, Math.floor(recommendation.suggestedStartMinutes / 60), recommendation.suggestedStartMinutes % 60)).toLocaleTimeString("en-US", {
+    timeZone: WRITING_TZ,
+    hour: "numeric",
+    minute: "2-digit"
   });
-  const sample = clustered.length >= 3 ? clustered : sameWeekday;
 
   return {
     dailyAverage,
@@ -103,12 +95,15 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
     bestDayThisYear,
     trend: { dailyNow, dailyPrev, diff, pct, currentPeriod, previousPeriod },
     motivation: {
-      weekday: tomorrowWeekday,
-      dataPoints: sample.length,
-      medianStart,
-      avgDuration: sample.length ? averageDurationMinutes(sample) : 45,
-      startExamples: sample.slice(0, 5).map((s) => timeLabel.format(new Date(s.start))),
-      durations: sample.slice(0, 5).map((s) => Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000))
+      target: recommendation.target,
+      weekday: recommendation.weekday,
+      dataPoints: recommendation.dataPoints,
+      suggestedStartMinutes: recommendation.suggestedStartMinutes,
+      suggestedDurationMinutes: recommendation.suggestedDurationMinutes,
+      confidence: recommendation.confidence,
+      reason: recommendation.reason,
+      headline: `Best ${targetLabel} start: ${clock}`,
+      detail: `Aim for about ${recommendation.suggestedDurationMinutes} minutes. This is a ${confidenceLabel(recommendation.confidence)} recommendation from your ${recommendation.dataPoints || "available"} historical sessions.`
     }
   };
 }
