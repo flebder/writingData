@@ -19,15 +19,27 @@ export const DEFAULT_RECOMMENDATION_POLICY: RecommendationPolicy = {
   minimumWeekdaySamples: 3
 };
 
+type ClusterStats = {
+  bucketStart: number;
+  bucketEnd: number;
+  recommendedMinute: number;
+  score: number;
+  sessionCount: number;
+  avgDurationMinutes: number;
+  totalMinutes: number;
+  weightedFrequency: number;
+};
+
 export type WritingRecommendation = {
   target: "today" | "tomorrow";
   targetDateYmd: string;
   weekday: string;
   suggestedStartMinutes: number;
   suggestedDurationMinutes: number;
-  dataPoints: number;
   reason: "weekday_pattern" | "general_pattern" | "fallback_default";
-  evidence: string;
+  supportingSentence: string;
+  chosenCluster: ClusterStats | null;
+  comparisonCluster: ClusterStats | null;
 };
 
 type BucketStats = {
@@ -36,20 +48,14 @@ type BucketStats = {
   weightedMinutes: number;
   weightedDurationSum: number;
   rawCount: number;
-};
-
-type RankedBucket = {
-  bucket: BucketStats;
-  score: number;
-  avgDuration: number;
+  totalMinutesRaw: number;
+  startsRaw: number[];
 };
 
 function daysBetweenYmd(a: string, b: string): number {
   const [ay, am, ad] = a.split("-").map(Number);
   const [by, bm, bd] = b.split("-").map(Number);
-  const aUtc = Date.UTC(ay, am - 1, ad);
-  const bUtc = Date.UTC(by, bm - 1, bd);
-  return Math.round((aUtc - bUtc) / 86_400_000);
+  return Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / 86_400_000);
 }
 
 function getMinuteOfDayInWritingTz(date: Date): number {
@@ -66,8 +72,7 @@ function getRecencyWeight(nowYmd: string, sessionYmd: string, halfLifeDays: numb
 }
 
 function normalize(value: number, max: number): number {
-  if (max <= 0) return 0;
-  return value / max;
+  return max <= 0 ? 0 : value / max;
 }
 
 function toBucket(minuteOfDay: number, bucketSizeMinutes: number): number {
@@ -78,53 +83,9 @@ function inPreferredWindow(minuteOfDay: number, policy: RecommendationPolicy): b
   return minuteOfDay >= policy.preferredStartWindow.earliestMinute && minuteOfDay <= policy.preferredStartWindow.latestMinute;
 }
 
-function rankBuckets(buckets: BucketStats[], policy: RecommendationPolicy): RankedBucket[] {
-  if (!buckets.length) return [];
-
-  const maxFreq = Math.max(...buckets.map((b) => b.weightedFrequency));
-  const maxTotalMinutes = Math.max(...buckets.map((b) => b.weightedMinutes));
-  const maxAvgDuration = Math.max(...buckets.map((b) => (b.weightedFrequency ? b.weightedDurationSum / b.weightedFrequency : 0)));
-
-  const ranked = buckets.map((b) => {
-    const avgDuration = b.weightedFrequency ? b.weightedDurationSum / b.weightedFrequency : 0;
-    const preferenceWeight = inPreferredWindow(b.bucketStart, policy) ? 1 : policy.outOfWindowPenalty;
-    const score = (
-      normalize(b.weightedFrequency, maxFreq) * 0.4 +
-      normalize(avgDuration, maxAvgDuration) * 0.35 +
-      normalize(b.weightedMinutes, maxTotalMinutes) * 0.25
-    ) * preferenceWeight;
-
-    return { bucket: b, score, avgDuration };
-  });
-
-  ranked.sort((a, b) => b.score - a.score || b.avgDuration - a.avgDuration || b.bucket.rawCount - a.bucket.rawCount);
-  return ranked;
-}
-
-function makeBuckets(sessions: WritingSession[], nowYmd: string, policy: RecommendationPolicy): BucketStats[] {
-  const map = new Map<number, BucketStats>();
-  for (const s of sessions) {
-    const start = new Date(s.start);
-    const dayKey = getYmdInWritingTz(start);
-    const bucketStart = toBucket(getMinuteOfDayInWritingTz(start), policy.bucketSizeMinutes);
-    const recency = getRecencyWeight(nowYmd, dayKey, policy.recencyHalfLifeDays);
-    const duration = getSessionDurationMinutes(s);
-
-    const bucket = map.get(bucketStart) || {
-      bucketStart,
-      weightedFrequency: 0,
-      weightedMinutes: 0,
-      weightedDurationSum: 0,
-      rawCount: 0
-    };
-
-    bucket.weightedFrequency += recency;
-    bucket.weightedMinutes += duration * recency;
-    bucket.weightedDurationSum += duration * recency;
-    bucket.rawCount += 1;
-    map.set(bucketStart, bucket);
-  }
-  return Array.from(map.values());
+function pickRepresentativeMinute(startsRaw: number[]): number {
+  const starts = [...startsRaw].sort((a, b) => a - b);
+  return starts[Math.floor(starts.length / 2)] ?? 9 * 60;
 }
 
 function formatClock(minuteOfDay: number): string {
@@ -135,113 +96,170 @@ function formatClock(minuteOfDay: number): string {
   });
 }
 
-function getEvidenceLine(weekday: string, ranked: RankedBucket[], policy: RecommendationPolicy): string {
-  if (!ranked.length) return "No strong weekday pattern yet, so this uses your overall best writing window.";
-  const best = ranked[0].bucket.bucketStart;
-  const rangeEnd = Math.min(23 * 60 + 59, best + policy.bucketSizeMinutes);
-  return `On ${weekday}s, your strongest sessions cluster around ${formatClock(best)}–${formatClock(rangeEnd)}.`;
+function toClusterStats(bucket: BucketStats, score: number, policy: RecommendationPolicy): ClusterStats {
+  return {
+    bucketStart: bucket.bucketStart,
+    bucketEnd: Math.min(23 * 60 + 59, bucket.bucketStart + policy.bucketSizeMinutes),
+    recommendedMinute: pickRepresentativeMinute(bucket.startsRaw),
+    score,
+    sessionCount: bucket.rawCount,
+    avgDurationMinutes: Math.round(bucket.totalMinutesRaw / Math.max(1, bucket.rawCount)),
+    totalMinutes: Math.round(bucket.totalMinutesRaw),
+    weightedFrequency: bucket.weightedFrequency
+  };
 }
 
-function pickFutureBucketForToday(ranked: RankedBucket[], nowMinute: number, policy: RecommendationPolicy): RankedBucket | null {
-  const remaining = ranked.filter((r) => r.bucket.bucketStart >= nowMinute);
-  if (remaining.length) return remaining[0];
+function rankBuckets(buckets: BucketStats[], policy: RecommendationPolicy): ClusterStats[] {
+  if (!buckets.length) return [];
 
-  const inWindow = ranked.filter((r) => inPreferredWindow(r.bucket.bucketStart, policy));
-  return inWindow[0] || null;
+  const maxFreq = Math.max(...buckets.map((b) => b.weightedFrequency));
+  const maxTotalMinutes = Math.max(...buckets.map((b) => b.weightedMinutes));
+  const maxAvgDuration = Math.max(...buckets.map((b) => (b.weightedFrequency ? b.weightedDurationSum / b.weightedFrequency : 0)));
+
+  return buckets
+    .map((bucket) => {
+      const avgDuration = bucket.weightedFrequency ? bucket.weightedDurationSum / bucket.weightedFrequency : 0;
+      const preferenceWeight = inPreferredWindow(bucket.bucketStart, policy) ? 1 : policy.outOfWindowPenalty;
+      const score = (
+        normalize(bucket.weightedFrequency, maxFreq) * 0.35 +
+        normalize(avgDuration, maxAvgDuration) * 0.4 +
+        normalize(bucket.weightedMinutes, maxTotalMinutes) * 0.25
+      ) * preferenceWeight;
+      return toClusterStats(bucket, score, policy);
+    })
+    .sort((a, b) => b.score - a.score || b.avgDurationMinutes - a.avgDurationMinutes || b.sessionCount - a.sessionCount);
+}
+
+function makeBuckets(sessions: WritingSession[], nowYmd: string, policy: RecommendationPolicy): BucketStats[] {
+  const map = new Map<number, BucketStats>();
+  for (const session of sessions) {
+    const start = new Date(session.start);
+    const startMinute = getMinuteOfDayInWritingTz(start);
+    const bucketStart = toBucket(startMinute, policy.bucketSizeMinutes);
+    const dayKey = getYmdInWritingTz(start);
+    const recency = getRecencyWeight(nowYmd, dayKey, policy.recencyHalfLifeDays);
+    const duration = getSessionDurationMinutes(session);
+
+    const bucket = map.get(bucketStart) || {
+      bucketStart,
+      weightedFrequency: 0,
+      weightedMinutes: 0,
+      weightedDurationSum: 0,
+      rawCount: 0,
+      totalMinutesRaw: 0,
+      startsRaw: []
+    };
+
+    bucket.weightedFrequency += recency;
+    bucket.weightedMinutes += duration * recency;
+    bucket.weightedDurationSum += duration * recency;
+    bucket.rawCount += 1;
+    bucket.totalMinutesRaw += duration;
+    bucket.startsRaw.push(startMinute);
+    map.set(bucketStart, bucket);
+  }
+
+  return Array.from(map.values());
+}
+
+function buildSupportingSentence(weekday: string, chosen: ClusterStats | null, comparison: ClusterStats | null): string {
+  if (!chosen) return "No strong pattern yet—this is a simple starter recommendation.";
+
+  const chosenWindow = `${formatClock(chosen.bucketStart)}–${formatClock(chosen.bucketEnd)}`;
+  if (!comparison) {
+    return `On ${weekday}s, your longest sessions usually start around ${chosenWindow}.`;
+  }
+
+  const diff = chosen.avgDurationMinutes - comparison.avgDurationMinutes;
+  if (diff >= 5) {
+    return `On ${weekday}s, ${chosenWindow} sessions run about ${diff} minutes longer than your next-best window.`;
+  }
+
+  return `On ${weekday}s, your strongest window is ${chosenWindow} based on session length and consistency.`;
+}
+
+function pickFutureCluster(ranked: ClusterStats[], nowMinute: number): ClusterStats | null {
+  return ranked.find((cluster) => cluster.recommendedMinute >= nowMinute) || null;
 }
 
 export function buildWritingRecommendation(sessions: WritingSession[], now = new Date(), policy: RecommendationPolicy = DEFAULT_RECOMMENDATION_POLICY): WritingRecommendation {
   const nowYmd = todayYmdInWritingTz(now);
   const nowMinute = getMinuteOfDayInWritingTz(now);
-  const validSessions = sessions.filter((s) => new Date(s.start) <= now);
-  const wroteToday = validSessions.some((s) => getYmdInWritingTz(new Date(s.start)) === nowYmd);
+  const validSessions = sessions.filter((session) => new Date(session.start) <= now);
+  const wroteToday = validSessions.some((session) => getYmdInWritingTz(new Date(session.start)) === nowYmd);
 
-  const candidateDate = new Date(now);
+  const targetDate = new Date(now);
   let target: "today" | "tomorrow" = wroteToday ? "tomorrow" : "today";
-  if (target === "tomorrow") candidateDate.setUTCDate(candidateDate.getUTCDate() + 1);
+  if (target === "tomorrow") targetDate.setUTCDate(targetDate.getUTCDate() + 1);
 
-  const weekday = candidateDate.toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ });
-  const targetDateYmd = todayYmdInWritingTz(candidateDate);
+  const weekday = targetDate.toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ });
+  const targetDateYmd = todayYmdInWritingTz(targetDate);
 
-  const sameWeekdaySessions = validSessions.filter(
-    (s) => new Date(s.start).toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ }) === weekday
+  const weekdaySessions = validSessions.filter(
+    (session) => new Date(session.start).toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ }) === weekday
   );
 
-  const weekdayRanked = rankBuckets(makeBuckets(sameWeekdaySessions, nowYmd, policy), policy);
+  const weekdayRanked = rankBuckets(makeBuckets(weekdaySessions, nowYmd, policy), policy);
   const generalRanked = rankBuckets(makeBuckets(validSessions, nowYmd, policy), policy);
 
-  let chosen = weekdayRanked[0];
+  let chosen: ClusterStats | null = weekdayRanked[0] || null;
+  let comparison: ClusterStats | null = weekdayRanked[1] || null;
   let reason: WritingRecommendation["reason"] = "weekday_pattern";
-  let evidence = getEvidenceLine(weekday, weekdayRanked, policy);
-  let dataPoints = sameWeekdaySessions.length;
 
-  if (!chosen || sameWeekdaySessions.length < policy.minimumWeekdaySamples) {
-    chosen = generalRanked[0];
-    reason = "general_pattern";
-    evidence = "Using your broader writing history because this weekday has limited data.";
-    dataPoints = validSessions.length;
+  if (!chosen || weekdaySessions.length < policy.minimumWeekdaySamples) {
+    chosen = generalRanked[0] || null;
+    comparison = generalRanked[1] || null;
+    reason = chosen ? "general_pattern" : "fallback_default";
   }
 
-  if (target === "today" && chosen) {
-    const weekdayTodayChoice = pickFutureBucketForToday(weekdayRanked, nowMinute, policy);
-    const generalTodayChoice = pickFutureBucketForToday(generalRanked, nowMinute, policy);
+  if (target === "today") {
+    const weekdayFuture = pickFutureCluster(weekdayRanked, nowMinute);
+    const generalFuture = pickFutureCluster(generalRanked, nowMinute);
 
-    const bestFuture = weekdayTodayChoice || generalTodayChoice;
-    if (bestFuture) {
-      chosen = bestFuture;
-      if (bestFuture === generalTodayChoice && !weekdayTodayChoice) {
-        reason = "general_pattern";
-        evidence = "Today’s weekday pattern has no remaining time slots, so this uses your best later-time habit.";
-      }
+    if (weekdayFuture) {
+      chosen = weekdayFuture;
+      comparison = weekdayRanked.find((c) => c.bucketStart !== weekdayFuture.bucketStart) || null;
+      reason = "weekday_pattern";
+    } else if (generalFuture) {
+      chosen = generalFuture;
+      comparison = generalRanked.find((c) => c.bucketStart !== generalFuture.bucketStart) || null;
+      reason = "general_pattern";
     } else {
       target = "tomorrow";
-      const tomorrowDate = new Date(now);
-      tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
-      const tomorrowWeekday = tomorrowDate.toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ });
+      const tomorrow = new Date(now);
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+      const tomorrowWeekday = tomorrow.toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ });
       const tomorrowSessions = validSessions.filter(
-        (s) => new Date(s.start).toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ }) === tomorrowWeekday
+        (session) => new Date(session.start).toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ }) === tomorrowWeekday
       );
       const tomorrowRanked = rankBuckets(makeBuckets(tomorrowSessions, nowYmd, policy), policy);
-      chosen = tomorrowRanked[0] || generalRanked[0];
-      reason = tomorrowRanked[0] ? "weekday_pattern" : "general_pattern";
-      evidence = tomorrowRanked[0]
-        ? getEvidenceLine(tomorrowWeekday, tomorrowRanked, policy)
-        : "All remaining times today have passed, so this uses your strongest overall writing window for tomorrow.";
-      dataPoints = tomorrowRanked[0] ? tomorrowSessions.length : validSessions.length;
+      chosen = tomorrowRanked[0] || generalRanked[0] || null;
+      comparison = tomorrowRanked[1] || generalRanked[1] || null;
+      reason = tomorrowRanked[0] ? "weekday_pattern" : chosen ? "general_pattern" : "fallback_default";
+
       return {
         target,
-        targetDateYmd: todayYmdInWritingTz(tomorrowDate),
+        targetDateYmd: todayYmdInWritingTz(tomorrow),
         weekday: tomorrowWeekday,
-        suggestedStartMinutes: chosen ? chosen.bucket.bucketStart + policy.bucketSizeMinutes / 2 : 9 * 60,
-        suggestedDurationMinutes: chosen ? Math.max(20, Math.round(chosen.avgDuration || 45)) : 45,
-        dataPoints,
+        suggestedStartMinutes: chosen?.recommendedMinute ?? policy.preferredStartWindow.earliestMinute,
+        suggestedDurationMinutes: chosen?.avgDurationMinutes ?? 45,
         reason,
-        evidence
+        supportingSentence: buildSupportingSentence(tomorrowWeekday, chosen, comparison),
+        chosenCluster: chosen,
+        comparisonCluster: comparison
       };
     }
-  }
-
-  if (!chosen) {
-    return {
-      target,
-      targetDateYmd,
-      weekday,
-      suggestedStartMinutes: Math.max(policy.preferredStartWindow.earliestMinute, 9 * 60),
-      suggestedDurationMinutes: 45,
-      dataPoints: 0,
-      reason: "fallback_default",
-      evidence: "No strong history yet; this is a simple starter plan based on your preferred writing window."
-    };
   }
 
   return {
     target,
     targetDateYmd,
     weekday,
-    suggestedStartMinutes: chosen.bucket.bucketStart + policy.bucketSizeMinutes / 2,
-    suggestedDurationMinutes: Math.max(20, Math.round(chosen.avgDuration || 45)),
-    dataPoints,
+    suggestedStartMinutes: chosen?.recommendedMinute ?? policy.preferredStartWindow.earliestMinute,
+    suggestedDurationMinutes: chosen?.avgDurationMinutes ?? 45,
     reason,
-    evidence
+    supportingSentence: buildSupportingSentence(weekday, chosen, comparison),
+    chosenCluster: chosen,
+    comparisonCluster: comparison
   };
 }

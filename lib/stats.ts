@@ -24,13 +24,7 @@ export type DashboardStats = {
     currentPeriod: string[];
     previousPeriod: string[];
   };
-  motivation: {
-    target: "today" | "tomorrow";
-    weekday: string;
-    dataPoints: number;
-    suggestedStartMinutes: number;
-    suggestedDurationMinutes: number;
-    reason: string;
+  motivation: ReturnType<typeof buildWritingRecommendation> & {
     headline: string;
     detail: string;
   };
@@ -80,8 +74,8 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
   const diff = dailyNow - dailyPrev;
   const pct = dailyPrev ? Math.round((diff / dailyPrev) * 100) : 0;
 
-  const recommendation = buildWritingRecommendation(sessions, now, DEFAULT_RECOMMENDATION_POLICY);
-  const targetLabel = recommendation.target === "today" ? "today" : "tomorrow";
+  const rec = buildWritingRecommendation(sessions, now, DEFAULT_RECOMMENDATION_POLICY);
+  const targetLabel = rec.target === "today" ? "today" : "tomorrow";
 
   return {
     dailyAverage,
@@ -91,14 +85,9 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
     bestDayThisYear,
     trend: { dailyNow, dailyPrev, diff, pct, currentPeriod, previousPeriod },
     motivation: {
-      target: recommendation.target,
-      weekday: recommendation.weekday,
-      dataPoints: recommendation.dataPoints,
-      suggestedStartMinutes: recommendation.suggestedStartMinutes,
-      suggestedDurationMinutes: recommendation.suggestedDurationMinutes,
-      reason: recommendation.reason,
-      headline: `Write ${targetLabel} at ${formatClock(recommendation.suggestedStartMinutes)} for about ${recommendation.suggestedDurationMinutes} minutes.`,
-      detail: recommendation.evidence
+      ...rec,
+      headline: `Write ${targetLabel} at ${formatClock(rec.suggestedStartMinutes)} for about ${rec.suggestedDurationMinutes} minutes`,
+      detail: rec.supportingSentence
     }
   };
 }
