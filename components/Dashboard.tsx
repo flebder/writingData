@@ -246,6 +246,7 @@ export default function Dashboard() {
         ) : (
           <div className="lineWrap">
             <svg viewBox="0 0 100 42" className="lineChartAlt">
+              {/* Axis tick labels were intentionally removed to avoid stale helper regressions (e.g., getXAxisTicks). */}
               <line x1="7" y1="2" x2="7" y2="38" stroke="#a9b8ad" strokeWidth="0.4" />
               <line x1="7" y1="38" x2="98" y2="38" stroke="#a9b8ad" strokeWidth="0.4" />
               <polygon fill="rgba(47,127,97,0.10)" points={`${lineData.map((p, i) => `${7 + (i / Math.max(1, lineData.length - 1)) * 91},${38 - (p.minutes / maxLine) * 32}`).join(" ")} 98,38 7,38`} />
