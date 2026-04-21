@@ -86,7 +86,7 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
     trend: { dailyNow, dailyPrev, diff, pct, currentPeriod, previousPeriod },
     motivation: {
       ...rec,
-      headline: `Write ${targetLabel} at ${formatClock(rec.suggestedStartMinutes)} for about ${rec.suggestedDurationMinutes} minutes`,
+      headline: `Write ${targetLabel} at ${formatClock(rec.suggestedStartMinutes)} for about ${rec.suggestedDurationMinutes} minutes.`,
       detail: rec.supportingSentence
     }
   };
