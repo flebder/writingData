@@ -2,10 +2,11 @@ export type WritingSession = {
   id: string;
   start: string; // UTC ISO
   end: string; // UTC ISO
+  dateKey: string; // canonical YYYY-MM-DD from sheet data
 };
 
 export type DayBucket = {
-  date: string; // YYYY-MM-DD in America/Los_Angeles
+  date: string; // canonical YYYY-MM-DD from sheet data
   minutes: number;
   sessions: WritingSession[];
 };
@@ -18,9 +19,9 @@ const DAY_MS = 24 * 60 * MINUTE_MS;
 const ymdFormatters = new Map<string, Intl.DateTimeFormat>();
 
 export const FALLBACK_SESSIONS: WritingSession[] = [
-  { id: "fallback-1", start: "2026-04-01T16:00:00.000Z", end: "2026-04-01T16:45:00.000Z" },
-  { id: "fallback-2", start: "2026-04-03T03:30:00.000Z", end: "2026-04-03T04:20:00.000Z" },
-  { id: "fallback-3", start: "2026-04-04T06:30:00.000Z", end: "2026-04-04T07:05:00.000Z" }
+  { id: "fallback-1", start: "2026-04-01T16:00:00.000Z", end: "2026-04-01T16:45:00.000Z", dateKey: "2026-04-01" },
+  { id: "fallback-2", start: "2026-04-03T03:30:00.000Z", end: "2026-04-03T04:20:00.000Z", dateKey: "2026-04-03" },
+  { id: "fallback-3", start: "2026-04-04T06:30:00.000Z", end: "2026-04-04T07:05:00.000Z", dateKey: "2026-04-04" }
 ];
 
 const tzHourFormatters = new Map<string, Intl.DateTimeFormat>();
@@ -107,57 +108,63 @@ export function addDaysToYmd(ymd: string, days: number): string {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
-function parseUsDateLike(value: string): Date | null {
-  const m = value.match(
-    /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s)+(?:(\d{1,2}):(\d{2})(?::(\d{2}))?)(?:\s*(AM|PM))?$/i
-  );
-  if (!m) return null;
-  let [, mm, dd, yyyy, hh, min, sec, ampm] = m;
-  const year = yyyy.length === 2 ? 2000 + Number(yyyy) : Number(yyyy);
-  let hour = Number(hh);
-  if (ampm) {
-    const upper = ampm.toUpperCase();
-    if (upper === "PM" && hour < 12) hour += 12;
-    if (upper === "AM" && hour === 12) hour = 0;
-  }
-  return zonedLocalToUtc(year, Number(mm), Number(dd), hour, Number(min), Number(sec || 0));
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
 }
 
-function parseMonthNameDate(value: string): Date | null {
-  const m = value.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})\s*(?:at\s*)?(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
-  if (!m) return null;
-  const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-  const monthIdx = monthNames.indexOf(m[1].slice(0, 3).toLowerCase());
-  if (monthIdx < 0) return null;
-  let hour = Number(m[4]);
-  const ap = m[6]?.toUpperCase();
-  if (ap) {
-    if (ap === "PM" && hour < 12) hour += 12;
-    if (ap === "AM" && hour === 12) hour = 0;
-  }
-  return zonedLocalToUtc(Number(m[3]), monthIdx + 1, Number(m[2]), hour, Number(m[5]));
+function toYmd(year: number, month: number, day: number): string {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
 }
 
-export function normalizeDate(value: string): Date | null {
+function parseSheetDateTimeParts(value: string): { year: number; month: number; day: number; hour: number; minute: number; second: number } | null {
   const cleaned = value.replace(/^"|"$/g, "").trim();
   if (!cleaned) return null;
 
   const gviz = cleaned.match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
   if (gviz) {
     const [, y, m, d, h, min, s] = gviz;
-    return zonedLocalToUtc(Number(y), Number(m) + 1, Number(d), Number(h), Number(min), Number(s));
+    return { year: Number(y), month: Number(m) + 1, day: Number(d), hour: Number(h), minute: Number(min), second: Number(s) };
   }
 
-  const parsers = [cleaned, cleaned.replace(" at ", " ")];
-  for (const candidate of parsers) {
-    const monthName = parseMonthNameDate(candidate);
-    if (monthName) return monthName;
+  const monthName = cleaned.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),\s*(\d{4})\s*(?:at\s*)?(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i);
+  if (monthName) {
+    const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const monthIdx = monthNames.indexOf(monthName[1].slice(0, 3).toLowerCase());
+    if (monthIdx < 0) return null;
+    let hour = Number(monthName[4]);
+    const ap = monthName[7]?.toUpperCase();
+    if (ap === "PM" && hour < 12) hour += 12;
+    if (ap === "AM" && hour === 12) hour = 0;
+    return {
+      year: Number(monthName[3]),
+      month: monthIdx + 1,
+      day: Number(monthName[2]),
+      hour,
+      minute: Number(monthName[5]),
+      second: Number(monthName[6] || "0")
+    };
+  }
 
-    const us = parseUsDateLike(candidate);
-    if (us) return us;
+  const us = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,|\s)+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?$/i);
+  if (us) {
+    const month = Number(us[1]);
+    const day = Number(us[2]);
+    const year = us[3].length === 2 ? 2000 + Number(us[3]) : Number(us[3]);
+    let hour = Number(us[4]);
+    const ap = us[7]?.toUpperCase();
+    if (ap === "PM" && hour < 12) hour += 12;
+    if (ap === "AM" && hour === 12) hour = 0;
+    return { year, month, day, hour, minute: Number(us[5]), second: Number(us[6] || "0") };
   }
 
   return null;
+}
+
+export function parseSheetDateTime(value: string): { date: Date; ymd: string } | null {
+  const parts = parseSheetDateTimeParts(value);
+  if (!parts) return null;
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second));
+  return { date, ymd: toYmd(parts.year, parts.month, parts.day) };
 }
 
 export function splitSessionAcrossDays(start: Date, end: Date, timeZone = WRITING_TZ) {
@@ -199,6 +206,15 @@ function findClockColumns(headers: string[]) {
   return { startIdx, endIdx };
 }
 
+function findCanonicalDateColumn(headers: string[], startIdx: number): number {
+  const normalized = headers.map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  const explicitDateIdx = normalized.findIndex((h) => h === "date" || h.includes("sessiondate") || h.includes("entrydate"));
+  if (explicitDateIdx >= 0) return explicitDateIdx;
+  const timestampIdx = normalized.findIndex((h) => h.includes("timestamp"));
+  if (timestampIdx >= 0) return timestampIdx;
+  return startIdx >= 0 ? startIdx : 0;
+}
+
 export function parseCsvSessions(csv: string): WritingSession[] {
   const rows = parseCsvRows(csv);
   if (!rows.length) return [];
@@ -206,31 +222,42 @@ export function parseCsvSessions(csv: string): WritingSession[] {
   const { startIdx, endIdx } = findClockColumns(rows[0].raw);
   const fallbackStartIdx = startIdx >= 0 ? startIdx : 1;
   const fallbackEndIdx = endIdx >= 0 ? endIdx : 2;
+  const canonicalDateIdx = findCanonicalDateColumn(rows[0].raw, fallbackStartIdx);
 
   const sessions: WritingSession[] = [];
   const dedupe = new Set<string>();
+  const debug = process.env.DEBUG_SHEET_PARSE === "1";
 
   for (let i = 1; i < rows.length; i += 1) {
     const row = rows[i];
     const startRaw = row.raw[fallbackStartIdx] || "";
     const endRaw = row.raw[fallbackEndIdx] || "";
+    const canonicalRaw = row.raw[canonicalDateIdx] || startRaw;
 
     if (!startRaw && !endRaw) continue;
 
-    const start = normalizeDate(startRaw);
-    const end = normalizeDate(endRaw);
+    const startParsed = parseSheetDateTime(startRaw);
+    const endParsed = parseSheetDateTime(endRaw);
+    const canonicalParsed = parseSheetDateTime(canonicalRaw) || startParsed;
 
-    if (!start || !end) {
+    if (!startParsed || !endParsed || !canonicalParsed) {
+      if (debug) console.log("[sheet-parse] excluded invalid row", { rowNum: row.rowNum, startRaw, endRaw, canonicalRaw });
       console.warn(`Skipping row ${row.rowNum}: invalid start/end`, { startRaw, endRaw });
       continue;
     }
+    const start = startParsed.date;
+    const end = endParsed.date;
+    const canonicalDate = canonicalParsed.ymd;
+
     if (end <= start) {
+      if (debug) console.log("[sheet-parse] excluded non-positive duration row", { rowNum: row.rowNum, start: start.toISOString(), end: end.toISOString() });
       console.warn(`Skipping row ${row.rowNum}: end must be after start`, { start: start.toISOString(), end: end.toISOString() });
       continue;
     }
 
     const key = `${start.toISOString()}__${end.toISOString()}`;
     if (dedupe.has(key)) {
+      if (debug) console.log("[sheet-parse] excluded duplicate row", { rowNum: row.rowNum, key });
       console.warn(`Skipping row ${row.rowNum}: duplicate session`, key);
       continue;
     }
@@ -239,8 +266,10 @@ export function parseCsvSessions(csv: string): WritingSession[] {
     sessions.push({
       id: `${start.getTime()}-${end.getTime()}-${row.rowNum}`,
       start: start.toISOString(),
-      end: end.toISOString()
+      end: end.toISOString(),
+      dateKey: canonicalDate
     });
+    if (debug && sessions.length <= 10) console.log("[sheet-parse] included row", { rowNum: row.rowNum, canonicalDate, start: start.toISOString(), end: end.toISOString() });
   }
 
   return sessions.sort((a, b) => a.start.localeCompare(b.start));
@@ -249,11 +278,11 @@ export function parseCsvSessions(csv: string): WritingSession[] {
 export function aggregateDays(sessions: WritingSession[], timeZone = WRITING_TZ): Record<string, DayBucket> {
   const byDay: Record<string, DayBucket> = {};
   for (const session of sessions) {
-    for (const chunk of splitSessionAcrossDays(new Date(session.start), new Date(session.end), timeZone)) {
-      if (!byDay[chunk.date]) byDay[chunk.date] = { date: chunk.date, minutes: 0, sessions: [] };
-      byDay[chunk.date].minutes += chunk.minutes;
-      byDay[chunk.date].sessions.push(session);
-    }
+    const duration = Math.max(1, Math.round((new Date(session.end).getTime() - new Date(session.start).getTime()) / MINUTE_MS));
+    const key = session.dateKey || getYmdInWritingTz(new Date(session.start), timeZone);
+    if (!byDay[key]) byDay[key] = { date: key, minutes: 0, sessions: [] };
+    byDay[key].minutes += duration;
+    byDay[key].sessions.push(session);
   }
   return byDay;
 }

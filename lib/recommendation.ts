@@ -95,6 +95,11 @@ function getRecencyWeight(nowYmd: string, sessionYmd: string, halfLifeDays: numb
   return Math.pow(0.5, ageDays / halfLifeDays);
 }
 
+function weekdayFromYmd(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+}
+
 function toBucket(minuteOfDay: number, bucketSize: number): number {
   return Math.floor(minuteOfDay / bucketSize) * bucketSize;
 }
@@ -121,7 +126,7 @@ function aggregateBuckets(sessions: WritingSession[], nowYmd: string, policy: Re
   const map = new Map<number, BucketAggregate>();
   for (const session of sessions) {
     const start = new Date(session.start);
-    const dayYmd = getYmdInWritingTz(start, timeZone);
+    const dayYmd = session.dateKey || getYmdInWritingTz(start, timeZone);
     const minute = getMinuteOfDayInWritingTz(start, timeZone);
     const bucketStart = toBucket(minute, policy.bucketSizeMinutes);
     const duration = getDurationMinutes(session);
@@ -195,7 +200,7 @@ function buildDurationRecommendation(chosen: ClusterStats | null, sessions: Writ
 
   const recentCutoffYmd = addDaysToYmd(nowYmd, -45);
   const recentDurations = sessions
-    .filter((s) => getYmdInWritingTz(new Date(s.start), timeZone) >= recentCutoffYmd)
+    .filter((s) => (s.dateKey || getYmdInWritingTz(new Date(s.start), timeZone)) >= recentCutoffYmd)
     .map(getDurationMinutes);
   const recentAvg = recentDurations.length ? recentDurations.reduce((a, b) => a + b, 0) / recentDurations.length : overallAvg;
 
@@ -232,7 +237,7 @@ export function buildWritingRecommendation(
   const nowYmd = todayYmdInWritingTz(now, timeZone);
   const nowMinute = getMinuteOfDayInWritingTz(now, timeZone);
   const validSessions = sessions.filter((s) => new Date(s.start) <= now);
-  const wroteToday = validSessions.some((s) => getYmdInWritingTz(new Date(s.start), timeZone) === nowYmd);
+  const wroteToday = validSessions.some((s) => (s.dateKey || getYmdInWritingTz(new Date(s.start), timeZone)) === nowYmd);
 
   const targetDate = new Date(now);
   let target: "today" | "tomorrow" = wroteToday ? "tomorrow" : "today";
@@ -242,7 +247,7 @@ export function buildWritingRecommendation(
   const weekday = targetDate.toLocaleDateString("en-US", { weekday: "long", timeZone });
 
   const weekdaySessions = validSessions.filter(
-    (s) => new Date(s.start).toLocaleDateString("en-US", { weekday: "long", timeZone }) === weekday
+    (s) => weekdayFromYmd(s.dateKey || getYmdInWritingTz(new Date(s.start), timeZone)) === weekday
   );
 
   const weekdayClusters = rankClusters(aggregateBuckets(weekdaySessions, nowYmd, policy, timeZone), policy);

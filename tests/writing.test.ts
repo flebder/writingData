@@ -13,8 +13,9 @@ test("parseCsvSessions handles headers, malformed rows, and dedupe", () => {
 
   const sessions = parseCsvSessions(csv);
   assert.equal(sessions.length, 1);
-  assert.equal(sessions[0].start, "2026-04-01T16:00:00.000Z");
-  assert.equal(sessions[0].end, "2026-04-01T17:00:00.000Z");
+  assert.equal(sessions[0].start, "2026-04-01T09:00:00.000Z");
+  assert.equal(sessions[0].end, "2026-04-01T10:00:00.000Z");
+  assert.equal(sessions[0].dateKey, "2026-04-01");
 });
 
 test("splitSessionAcrossDays splits midnight crossing sessions", () => {
@@ -40,8 +41,8 @@ test("getCalendarRange returns contiguous dates", () => {
 
 test("aggregateDays totals minutes without double counting chunks", () => {
   const sessions = [
-    { id: "1", start: "2026-04-01T16:00:00.000Z", end: "2026-04-01T16:45:00.000Z" },
-    { id: "2", start: "2026-04-01T17:00:00.000Z", end: "2026-04-01T17:30:00.000Z" }
+    { id: "1", start: "2026-04-01T16:00:00.000Z", end: "2026-04-01T16:45:00.000Z", dateKey: "2026-04-01" },
+    { id: "2", start: "2026-04-01T17:00:00.000Z", end: "2026-04-01T17:30:00.000Z", dateKey: "2026-04-01" }
   ];
   const byDay = aggregateDays(sessions);
   assert.equal(byDay["2026-04-01"].minutes, 75);
