@@ -1,23 +1,83 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { aggregateDays, rollingWeekMinutes, WRITING_TZ, type WritingSession } from "@/lib/writing";
+import { addDaysToYmd, aggregateDays, getHourInWritingTz, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
+import { calculateDashboardStats } from "@/lib/stats";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
 type ViewMode = "month" | "year";
 type CalendarMode = "grid" | "line";
 
+type LinePoint = {
+  tooltipLabel: string;
+  date: string;
+  minutes: number;
+};
+
 const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", minute: "2-digit" });
 const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 const fmtMinutes = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`);
 const level = (min: number) => (!min ? "none" : min < 30 ? "below" : min < 60 ? "baseline" : min < 120 ? "goal" : "super");
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const ymd = (d: Date) => getYmdInWritingTz(d);
 const ordinal = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? `${n}st` : n % 10 === 2 && n % 100 !== 12 ? `${n}nd` : n % 10 === 3 && n % 100 !== 13 ? `${n}rd` : `${n}th`);
+
 const monthOrdinal = (s: string) => {
   if (!s || s === "-") return "-";
   const d = new Date(`${s}T12:00:00Z`);
   return `${d.toLocaleDateString("en-US", { month: "long" })} ${ordinal(d.getUTCDate())}`;
 };
+
+function startOfDayUtcFromYmd(day: string): number {
+  const [y, m, d] = day.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+function isMissedDay(day: string, minutes: number, todayYmd: string): boolean {
+  return minutes === 0 && startOfDayUtcFromYmd(day) < startOfDayUtcFromYmd(todayYmd);
+}
+
+function buildMonthLineData(monthDays: Array<Date | null>, byDay: Record<string, { minutes: number }>): LinePoint[] {
+  return monthDays
+    .filter(Boolean)
+    .map((d) => {
+      const day = d as Date;
+      const key = ymd(day);
+      return {
+        tooltipLabel: dateFmt.format(new Date(`${key}T12:00:00Z`)),
+        date: key,
+        minutes: byDay[key]?.minutes || 0
+      };
+    });
+}
+
+function buildYearLineData(year: number, byDay: Record<string, { minutes: number }>): LinePoint[] {
+  const rows: LinePoint[] = [];
+  let cursor = `${year}-01-01`;
+  const end = `${year}-12-31`;
+
+  while (cursor <= end) {
+    const weekStartYmd = cursor;
+    let weekMinutes = 0;
+
+    for (let i = 0; i < 7 && cursor <= end; i += 1) {
+      weekMinutes += byDay[cursor]?.minutes || 0;
+      cursor = addDaysToYmd(cursor, 1);
+    }
+
+    const weekStart = new Date(`${weekStartYmd}T12:00:00Z`);
+    const weekEndYmd = addDaysToYmd(cursor, -1);
+    const weekEnd = new Date(`${weekEndYmd}T12:00:00Z`);
+    const weekLabel = `${weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}–${weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+
+    rows.push({
+      tooltipLabel: `${weekLabel} (${year})`,
+      date: weekStartYmd,
+      minutes: weekMinutes
+    });
+  }
+
+  return rows;
+}
 
 export default function Dashboard() {
   const [payload, setPayload] = useState<ApiPayload | null>(null);
@@ -27,11 +87,13 @@ export default function Dashboard() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
   const [hourHover, setHourHover] = useState<{ hour: number; x: number; y: number } | null>(null);
+  const [lineHover, setLineHover] = useState<{ item: LinePoint; x: number; y: number } | null>(null);
   const [expanded, setExpanded] = useState<null | "trend" | "motivation">(null);
 
   useEffect(() => {
     fetch("/api/sessions").then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
   }, []);
+
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -44,7 +106,7 @@ export default function Dashboard() {
   }, []);
 
   const byDay = useMemo(() => aggregateDays(payload?.sessions || []), [payload]);
-  const sortedDays = useMemo(() => Object.keys(byDay).sort(), [byDay]);
+  const todayKey = useMemo(() => todayYmdInWritingTz(new Date()), []);
 
   const monthDays = useMemo(() => {
     const y = displayDate.getFullYear();
@@ -61,80 +123,17 @@ export default function Dashboard() {
     return Array.from({ length: 12 }, (_, m) => ({ month: m, name: new Date(y, m, 1).toLocaleDateString(undefined, { month: "long" }), days: Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => new Date(y, m, i + 1)) }));
   }, [displayDate]);
 
-  const stats = useMemo(() => {
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    let month = 0;
-    let year = 0;
-    let bestMonth = { date: "-", minutes: 0 };
-    let bestYear = { date: "-", minutes: 0 };
-    for (const [d, v] of Object.entries(byDay)) {
-      if (d.startsWith(thisMonth)) {
-        month += v.minutes;
-        if (v.minutes > bestMonth.minutes) bestMonth = { date: d, minutes: v.minutes };
-      }
-      if (d.startsWith(String(now.getFullYear()))) {
-        year += v.minutes;
-        if (v.minutes > bestYear.minutes) bestYear = { date: d, minutes: v.minutes };
-      }
-    }
-    const avg = sortedDays.length ? Math.round(year / sortedDays.length) : 0;
-
-    const currentWeekDays = sortedDays.slice(-7);
-    const previousWeekDays = sortedDays.slice(-14, -7);
-    const weekNow = currentWeekDays.reduce((a, d) => a + byDay[d].minutes, 0);
-    const weekPrev = previousWeekDays.reduce((a, d) => a + byDay[d].minutes, 0);
-    const dailyNow = Math.round(weekNow / 7);
-    const dailyPrev = Math.round(weekPrev / 7);
-    const diff = dailyNow - dailyPrev;
-    const pct = dailyPrev ? Math.round((diff / dailyPrev) * 100) : 0;
-
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    const dow = tomorrow.getDay();
-    const sameDaySessions = (payload?.sessions || []).filter((s) => new Date(s.start).getDay() === dow);
-    const starts = sameDaySessions.map((s) => {
-      const d = new Date(s.start);
-      return d.getHours() * 60 + d.getMinutes();
-    }).sort((a, b) => a - b);
-    const medianStart = starts.length ? starts[Math.floor(starts.length / 2)] : 9 * 60;
-    const similar = sameDaySessions.filter((s) => {
-      const d = new Date(s.start);
-      const m = d.getHours() * 60 + d.getMinutes();
-      return Math.abs(m - medianStart) <= 90;
-    });
-    const sample = similar.length >= 3 ? similar : sameDaySessions;
-    const predicted = sample.length ? Math.round(sample.reduce((a, s) => a + (new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000, 0) / sample.length) : 45;
-    const humanStart = timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(medianStart / 60), medianStart % 60)));
-
-    return {
-      avg,
-      month,
-      year,
-      bestMonth,
-      bestYear,
-      trendText: `You’re writing ${fmtMinutes(Math.abs(diff))} ${diff >= 0 ? "more" : "less"} per day compared to two weeks ago${dailyPrev ? ` (${Math.abs(pct)}% ${diff >= 0 ? "more" : "less"})` : ""}.`,
-      trendMeta: { dailyNow, dailyPrev, currentWeekDays, previousWeekDays, diff },
-      motivation: `If you start writing tomorrow at ${humanStart}, you’re likely to write for ${predicted} minutes.`,
-      motivationMeta: {
-        weekday: tomorrow.toLocaleDateString("en-US", { weekday: "long" }),
-        dataPoints: sample.length,
-        medianStart,
-        avgDuration: predicted,
-        source: "Historical sessions from your sheet for the same weekday.",
-        startExamples: sample.slice(0, 5).map((s) => timeFmt.format(new Date(s.start))),
-        durations: sample.slice(0, 5).map((s) => Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 60000))
-      }
-    };
-  }, [byDay, payload, sortedDays]);
+  const stats = useMemo(() => calculateDashboardStats(payload?.sessions || []), [payload]);
 
   const weekdayBars = useMemo(() => {
     const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const rows = names.map((name) => ({ name, total: 0, count: 0, avg: 0 }));
     for (const [d, b] of Object.entries(byDay)) {
-      const idx = new Date(`${d}T12:00:00Z`).getUTCDay();
-      rows[idx].total += b.minutes;
-      rows[idx].count += 1;
+      const idx = new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: WRITING_TZ, weekday: "short" });
+      const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      const rowIdx = map[idx] ?? 0;
+      rows[rowIdx].total += b.minutes;
+      rows[rowIdx].count += 1;
     }
     rows.forEach((r) => (r.avg = r.count ? Math.round(r.total / r.count) : 0));
     return rows;
@@ -147,11 +146,11 @@ export default function Dashboard() {
       const et = new Date(s.end);
       let cursor = new Date(st);
       while (cursor < et) {
-        const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", hour12: false }).format(cursor));
-        const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: WRITING_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(cursor);
-        const nextHour = new Date(cursor);
-        nextHour.setMinutes(60, 0, 0);
-        const end = nextHour < et ? nextHour : et;
+        const h = getHourInWritingTz(cursor);
+        const dayKey = getYmdInWritingTz(cursor);
+        const [yy, mm, dd] = dayKey.split("-").map(Number);
+        const nextHourUtc = zonedLocalToUtc(yy, mm, dd, h + 1, 0, 0);
+        const end = nextHourUtc < et ? nextHourUtc : et;
         bins[h].days.add(dayKey);
         bins[h].totalMinutes += Math.max(1, Math.round((end.getTime() - cursor.getTime()) / 60000));
         cursor = end;
@@ -165,15 +164,8 @@ export default function Dashboard() {
   }, [payload]);
 
   const lineData = useMemo(() => {
-    if (viewMode === "month") return monthDays.filter(Boolean).map((d) => ({ label: String((d as Date).getDate()), date: ymd(d as Date), minutes: byDay[ymd(d as Date)]?.minutes || 0 }));
-    const start = new Date(displayDate.getFullYear(), 0, 1);
-    const end = new Date(displayDate.getFullYear(), 11, 31);
-    const rows: Array<{ label: string; date: string; minutes: number }> = [];
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const key = ymd(d);
-      rows.push({ label: key, date: key, minutes: byDay[key]?.minutes || 0 });
-    }
-    return rows;
+    if (viewMode === "month") return buildMonthLineData(monthDays, byDay);
+    return buildYearLineData(displayDate.getFullYear(), byDay);
   }, [viewMode, monthDays, byDay, displayDate]);
 
   const moveBack = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() - 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() - 1, 1));
@@ -203,38 +195,42 @@ export default function Dashboard() {
               if (!d) return <div key={i} className="day empty" />;
               const key = ymd(d);
               const min = byDay[key]?.minutes || 0;
-              return <button key={key} className={`day ${level(min)} ${min === 0 && new Date(key) < new Date() ? "zeroPast" : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getDate()}</button>;
+              const missed = isMissedDay(key, min, todayKey);
+              return <button key={key} className={`day ${level(min)} ${missed ? "zeroPast" : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getDate()}</button>;
             })}
           </div>
         ) : calendarMode === "grid" ? (
           <div className="yearWrap">
-            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(displayDate.getFullYear(), m.month, 1)); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.days.map((d) => { const key = ymd(d); const min = byDay[key]?.minutes || 0; return <button key={key} className={`mini ${level(min)} ${min === 0 && new Date(key) < new Date() ? "zeroPast" : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />; })}</div></div>)}
+            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(displayDate.getFullYear(), m.month, 1)); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.days.map((d) => { const key = ymd(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); return <button key={key} className={`mini ${level(min)} ${missed ? "zeroPast" : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />; })}</div></div>)}
           </div>
         ) : (
           <div className="lineWrap">
             <svg viewBox="0 0 100 42" className="lineChartAlt">
+              {/* Axis tick labels were intentionally removed to avoid stale helper regressions (e.g., getXAxisTicks). */}
               <line x1="7" y1="2" x2="7" y2="38" stroke="#a9b8ad" strokeWidth="0.4" />
               <line x1="7" y1="38" x2="98" y2="38" stroke="#a9b8ad" strokeWidth="0.4" />
-              <polyline fill="none" stroke="#2f7f61" strokeWidth="1.4" points={lineData.map((p, i) => `${7 + (i / Math.max(1, lineData.length - 1)) * 91},${38 - (p.minutes / maxLine) * 32}`).join(" ")} />
-              {lineData.map((p, i) => <circle key={`${p.label}-${i}`} cx={7 + (i / Math.max(1, lineData.length - 1)) * 91} cy={38 - (p.minutes / maxLine) * 32} r={viewMode === "year" ? "0.6" : "1.1"} fill="#2f7f61" onMouseEnter={(e) => viewMode === "month" && setHover({ day: p.date, x: e.clientX, y: e.clientY })} onMouseMove={(e) => viewMode === "month" && setHover({ day: p.date, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />)}
+              <polygon fill="rgba(47,127,97,0.10)" points={`${lineData.map((p, i) => `${7 + (i / Math.max(1, lineData.length - 1)) * 91},${38 - (p.minutes / maxLine) * 32}`).join(" ")} 98,38 7,38`} />
+              <polyline fill="none" stroke="#2f7f61" strokeWidth={viewMode === "year" ? "1" : "1.4"} points={lineData.map((p, i) => `${7 + (i / Math.max(1, lineData.length - 1)) * 91},${38 - (p.minutes / maxLine) * 32}`).join(" ")} />
+              {viewMode === "month" && lineData.map((p, i) => <circle key={`${p.date}-${i}`} cx={7 + (i / Math.max(1, lineData.length - 1)) * 91} cy={38 - (p.minutes / maxLine) * 32} r="1" fill="#2f7f61" onMouseEnter={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseLeave={() => setLineHover(null)} />)}
+              {viewMode === "year" && lineData.map((p, i) => <rect key={`${p.date}-${i}`} x={7 + (i / Math.max(1, lineData.length - 1)) * 91 - 0.5} y={0} width={1} height={42} fill="transparent" onMouseEnter={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseLeave={() => setLineHover(null)} />)}
             </svg>
-            <div className="lineAxis">{viewMode === "month" ? lineData.filter((_, i) => i % 5 === 0 || i === lineData.length - 1).map((p) => <span key={p.label}>{p.label.split("-")[2]}</span>) : Array.from({ length: 12 }, (_, i) => <span key={i}>{new Date(displayDate.getFullYear(), i, 1).toLocaleDateString(undefined, { month: "short" })}</span>)}</div>
-            <p className="axisLabel">X-axis: {viewMode === "month" ? "day of month" : "day of year"} · Y-axis: writing time</p>
+            <p className="axisLabel">{viewMode === "month" ? "Daily writing this month" : "Weekly writing totals this year"}</p>
           </div>
         )}
 
         {hover && <div className="hoverTip" style={{ left: hover.x + 12, top: hover.y + 12 }}><strong>{dateFmt.format(new Date(`${hover.day}T12:00:00Z`))}</strong><span>{fmtMinutes(hovered?.minutes || 0)} written</span></div>}
+        {lineHover && <div className="hoverTip" style={{ left: lineHover.x + 12, top: lineHover.y + 12 }}><strong>{lineHover.item.tooltipLabel}</strong><span>{fmtMinutes(lineHover.item.minutes)} written</span></div>}
       </section>
 
       <section className="stats">
-        <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.avg)}</p></article>
-        <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.month)}</p></article>
-        <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.year)}</p></article>
-        <article className="panel"><h3>Best Day This Month</h3><p>{monthOrdinal(stats.bestMonth.date)}</p><small>{fmtMinutes(stats.bestMonth.minutes)}</small></article>
-        <article className="panel"><h3>Best Day This Year</h3><p>{monthOrdinal(stats.bestYear.date)}</p><small>{fmtMinutes(stats.bestYear.minutes)}</small></article>
+        <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.dailyAverage)}</p></article>
+        <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.monthlyTotal)}</p></article>
+        <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.yearlyTotal)}</p></article>
+        <article className="panel"><h3>Best Day This Month</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisMonth.date)}</span><small>{fmtMinutes(stats.bestDayThisMonth.minutes)}</small></p></article>
+        <article className="panel"><h3>Best Day This Year</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisYear.date)}</span><small>{fmtMinutes(stats.bestDayThisYear.minutes)}</small></p></article>
       </section>
 
-      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>{stats.trendText}</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>{stats.motivation}</p></article></section>
+      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>You’re writing {fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"} per day compared to the prior week{stats.trend.dailyPrev ? ` (${Math.abs(stats.trend.pct)}% ${stats.trend.diff >= 0 ? "more" : "less"})` : ""}.</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p><strong>{stats.motivation.headline}</strong><br />{stats.motivation.encouragement}</p></article></section>
 
       <section className="panel chartPanel">
         <h3>Average writing time by weekday</h3>
@@ -248,9 +244,9 @@ export default function Dashboard() {
 
       {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{dateFmt.format(new Date(`${selected.date}T12:00:00Z`))}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p><p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{selected.sessions.map((s) => <li key={s.id}>{timeFmt.format(new Date(s.start))} – {timeFmt.format(new Date(s.end))}</li>)}</ul></div></div>}
 
-      {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p>Current 7-day average: <strong>{fmtMinutes(stats.trendMeta.dailyNow)}</strong></p><p>Comparison 7-day average: <strong>{fmtMinutes(stats.trendMeta.dailyPrev)}</strong></p><p>Current period: {stats.trendMeta.currentWeekDays[0]} to {stats.trendMeta.currentWeekDays.at(-1)}</p><p>Comparison period: {stats.trendMeta.previousWeekDays[0]} to {stats.trendMeta.previousWeekDays.at(-1)}</p><p>Difference = {fmtMinutes(stats.trendMeta.dailyNow)} - {fmtMinutes(stats.trendMeta.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trendMeta.diff))} {stats.trendMeta.diff >= 0 ? "more" : "less"} per day</strong>.</p></div></div>}
+      {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p>Current 7-day average: <strong>{fmtMinutes(stats.trend.dailyNow)}</strong></p><p>Comparison 7-day average: <strong>{fmtMinutes(stats.trend.dailyPrev)}</strong></p><p>Current period: {stats.trend.currentPeriod[0]} to {stats.trend.currentPeriod.at(-1)}</p><p>Comparison period: {stats.trend.previousPeriod[0]} to {stats.trend.previousPeriod.at(-1)}</p><p>Difference = {fmtMinutes(stats.trend.dailyNow)} - {fmtMinutes(stats.trend.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"} per day</strong>.</p></div></div>}
 
-      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p>Day used: <strong>{stats.motivationMeta.weekday}</strong></p><p>Data source: <strong>{stats.motivationMeta.source}</strong></p><p>Data points used: <strong>{stats.motivationMeta.dataPoints}</strong></p><p>Typical start time cluster: around <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivationMeta.medianStart/60),stats.motivationMeta.medianStart%60)))}</strong></p><p>Average duration for similar starts: <strong>{fmtMinutes(stats.motivationMeta.avgDuration)}</strong></p><p>Typical starts sampled: {stats.motivationMeta.startExamples.join(", ") || "n/a"}</p><p>Sample durations (min): {stats.motivationMeta.durations.join(", ") || "n/a"}</p><p>Method: We selected tomorrow’s weekday history and averaged durations from sessions that started near your typical time for that weekday.</p></div></div>}
+      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p>Target day: <strong>{stats.motivation.target === "today" ? "Today" : "Tomorrow"} ({stats.motivation.weekday})</strong></p><p>Suggested start: <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.suggestedStartMinutes/60),stats.motivation.suggestedStartMinutes%60)))}</strong></p><p>Suggested duration: <strong>{fmtMinutes(stats.motivation.suggestedDurationMinutes)}</strong></p><p>Chosen window: <strong>{stats.motivation.chosenCluster ? `${timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.chosenCluster.bucketStart/60),stats.motivation.chosenCluster.bucketStart%60)))}–${timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.chosenCluster.bucketEnd/60),stats.motivation.chosenCluster.bucketEnd%60)))}` : "n/a"}</strong></p><p>Sessions in this window: <strong>{stats.motivation.chosenCluster?.sessionCount ?? 0}</strong></p><p>Average duration in this window: <strong>{fmtMinutes(stats.motivation.chosenCluster?.averageDurationMinutes ?? stats.motivation.suggestedDurationMinutes)}</strong></p><p>{stats.motivation.detail}</p>{stats.motivation.alternativeCluster && <p>Next best window: <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.alternativeCluster.bucketStart/60),stats.motivation.alternativeCluster.bucketStart%60)))}</strong> with {fmtMinutes(stats.motivation.alternativeCluster.averageDurationMinutes)} average sessions.</p>}</div></div>}
     </main>
   );
 }
