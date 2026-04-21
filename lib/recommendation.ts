@@ -82,8 +82,8 @@ function daysBetweenYmd(a: string, b: string): number {
   return Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / 86_400_000);
 }
 
-function getMinuteOfDayInWritingTz(date: Date): number {
-  return getHourInWritingTz(date) * 60 + getMinuteInWritingTz(date);
+function getMinuteOfDayInWritingTz(date: Date, timeZone: string): number {
+  return getHourInWritingTz(date, timeZone) * 60 + getMinuteInWritingTz(date, timeZone);
 }
 
 function getDurationMinutes(session: WritingSession): number {
@@ -109,20 +109,20 @@ function bandWeight(minute: number, policy: RecommendationPolicy): number {
   return policy.timeBands.penalized.weight;
 }
 
-function formatClock(minute: number): string {
+function formatClock(minute: number, timeZone: string): string {
   return new Date(Date.UTC(2026, 0, 1, Math.floor(minute / 60), minute % 60)).toLocaleTimeString("en-US", {
-    timeZone: WRITING_TZ,
+    timeZone,
     hour: "numeric",
     minute: "2-digit"
   });
 }
 
-function aggregateBuckets(sessions: WritingSession[], nowYmd: string, policy: RecommendationPolicy): BucketAggregate[] {
+function aggregateBuckets(sessions: WritingSession[], nowYmd: string, policy: RecommendationPolicy, timeZone: string): BucketAggregate[] {
   const map = new Map<number, BucketAggregate>();
   for (const session of sessions) {
     const start = new Date(session.start);
-    const dayYmd = getYmdInWritingTz(start);
-    const minute = getMinuteOfDayInWritingTz(start);
+    const dayYmd = getYmdInWritingTz(start, timeZone);
+    const minute = getMinuteOfDayInWritingTz(start, timeZone);
     const bucketStart = toBucket(minute, policy.bucketSizeMinutes);
     const duration = getDurationMinutes(session);
     const recencyWeight = getRecencyWeight(nowYmd, dayYmd, policy.recencyHalfLifeDays);
@@ -189,13 +189,13 @@ function rankClusters(buckets: BucketAggregate[], policy: RecommendationPolicy):
     .sort((a, b) => b.score - a.score || b.averageDurationMinutes - a.averageDurationMinutes || b.sessionCount - a.sessionCount || a.representativeMinute - b.representativeMinute);
 }
 
-function buildDurationRecommendation(chosen: ClusterStats | null, sessions: WritingSession[], policy: RecommendationPolicy, nowYmd: string): number {
+function buildDurationRecommendation(chosen: ClusterStats | null, sessions: WritingSession[], policy: RecommendationPolicy, nowYmd: string, timeZone: string): number {
   const allDurations = sessions.map(getDurationMinutes);
   const overallAvg = allDurations.length ? allDurations.reduce((a, b) => a + b, 0) / allDurations.length : 48;
 
   const recentCutoffYmd = addDaysToYmd(nowYmd, -45);
   const recentDurations = sessions
-    .filter((s) => getYmdInWritingTz(new Date(s.start)) >= recentCutoffYmd)
+    .filter((s) => getYmdInWritingTz(new Date(s.start), timeZone) >= recentCutoffYmd)
     .map(getDurationMinutes);
   const recentAvg = recentDurations.length ? recentDurations.reduce((a, b) => a + b, 0) / recentDurations.length : overallAvg;
 
@@ -208,40 +208,45 @@ function buildDurationRecommendation(chosen: ClusterStats | null, sessions: Writ
   return clamp(adjusted, policy.minimumRecommendationMinutes, policy.softMaxRecommendationMinutes);
 }
 
-function isClusterStillValidToday(cluster: ClusterStats, targetYmd: string, now: Date, policy: RecommendationPolicy): boolean {
+function isClusterStillValidToday(cluster: ClusterStats, targetYmd: string, now: Date, policy: RecommendationPolicy, timeZone: string): boolean {
   const [y, m, d] = targetYmd.split("-").map(Number);
-  const scheduledUtc = zonedLocalToUtc(y, m, d, Math.floor(cluster.representativeMinute / 60), cluster.representativeMinute % 60).getTime();
+  const scheduledUtc = zonedLocalToUtc(y, m, d, Math.floor(cluster.representativeMinute / 60), cluster.representativeMinute % 60, 0, timeZone).getTime();
   return scheduledUtc >= now.getTime() + policy.futureBufferMinutes * 60_000;
 }
 
-function pickBestValidClusterForToday(candidates: ClusterStats[], targetYmd: string, now: Date, policy: RecommendationPolicy): ClusterStats | null {
-  return candidates.find((cluster) => isClusterStillValidToday(cluster, targetYmd, now, policy)) || null;
+function pickBestValidClusterForToday(candidates: ClusterStats[], targetYmd: string, now: Date, policy: RecommendationPolicy, timeZone: string): ClusterStats | null {
+  return candidates.find((cluster) => isClusterStillValidToday(cluster, targetYmd, now, policy, timeZone)) || null;
 }
 
-function supportingSentence(weekday: string, chosen: ClusterStats | null): string {
+function supportingSentence(weekday: string, chosen: ClusterStats | null, timeZone: string): string {
   if (!chosen) return "Use this as a steady writing block and build momentum.";
-  return `${weekday}s are most reliable around ${formatClock(chosen.bucketStart)}–${formatClock(chosen.bucketEnd)} (${chosen.sessionCount} sessions).`;
+  return `${weekday}s are most reliable around ${formatClock(chosen.bucketStart, timeZone)}–${formatClock(chosen.bucketEnd, timeZone)} (${chosen.sessionCount} sessions).`;
 }
 
-export function buildWritingRecommendation(sessions: WritingSession[], now = new Date(), policy: RecommendationPolicy = DEFAULT_RECOMMENDATION_POLICY): WritingRecommendation {
-  const nowYmd = todayYmdInWritingTz(now);
-  const nowMinute = getMinuteOfDayInWritingTz(now);
+export function buildWritingRecommendation(
+  sessions: WritingSession[],
+  now = new Date(),
+  policy: RecommendationPolicy = DEFAULT_RECOMMENDATION_POLICY,
+  timeZone = WRITING_TZ
+): WritingRecommendation {
+  const nowYmd = todayYmdInWritingTz(now, timeZone);
+  const nowMinute = getMinuteOfDayInWritingTz(now, timeZone);
   const validSessions = sessions.filter((s) => new Date(s.start) <= now);
-  const wroteToday = validSessions.some((s) => getYmdInWritingTz(new Date(s.start)) === nowYmd);
+  const wroteToday = validSessions.some((s) => getYmdInWritingTz(new Date(s.start), timeZone) === nowYmd);
 
   const targetDate = new Date(now);
   let target: "today" | "tomorrow" = wroteToday ? "tomorrow" : "today";
   if (target === "tomorrow") targetDate.setUTCDate(targetDate.getUTCDate() + 1);
 
-  const targetYmd = todayYmdInWritingTz(targetDate);
-  const weekday = targetDate.toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ });
+  const targetYmd = todayYmdInWritingTz(targetDate, timeZone);
+  const weekday = targetDate.toLocaleDateString("en-US", { weekday: "long", timeZone });
 
   const weekdaySessions = validSessions.filter(
-    (s) => new Date(s.start).toLocaleDateString("en-US", { weekday: "long", timeZone: WRITING_TZ }) === weekday
+    (s) => new Date(s.start).toLocaleDateString("en-US", { weekday: "long", timeZone }) === weekday
   );
 
-  const weekdayClusters = rankClusters(aggregateBuckets(weekdaySessions, nowYmd, policy), policy);
-  const generalClusters = rankClusters(aggregateBuckets(validSessions, nowYmd, policy), policy);
+  const weekdayClusters = rankClusters(aggregateBuckets(weekdaySessions, nowYmd, policy, timeZone), policy);
+  const generalClusters = rankClusters(aggregateBuckets(validSessions, nowYmd, policy, timeZone), policy);
 
   let chosen: ClusterStats | null = weekdayClusters[0] || null;
   let alternative: ClusterStats | null =
@@ -253,8 +258,8 @@ export function buildWritingRecommendation(sessions: WritingSession[], now = new
   }
 
   if (target === "today") {
-    const weekdayValid = pickBestValidClusterForToday(weekdayClusters, targetYmd, now, policy);
-    const generalValid = pickBestValidClusterForToday(generalClusters, targetYmd, now, policy);
+    const weekdayValid = pickBestValidClusterForToday(weekdayClusters, targetYmd, now, policy, timeZone);
+    const generalValid = pickBestValidClusterForToday(generalClusters, targetYmd, now, policy, timeZone);
     if (weekdayValid) {
       chosen = weekdayValid;
       alternative = weekdayClusters.find((c) => c.bucketStart !== weekdayValid.bucketStart && c.sessionCount >= 3) || null;
@@ -278,7 +283,7 @@ export function buildWritingRecommendation(sessions: WritingSession[], now = new
     }
   }
 
-  const suggestedDurationMinutes = buildDurationRecommendation(chosen, validSessions, policy, nowYmd);
+  const suggestedDurationMinutes = buildDurationRecommendation(chosen, validSessions, policy, nowYmd, timeZone);
 
   return {
     target,
@@ -288,7 +293,7 @@ export function buildWritingRecommendation(sessions: WritingSession[], now = new
     suggestedDurationMinutes,
     chosenCluster: chosen,
     alternativeCluster: alternative,
-    supportingSentence: supportingSentence(weekday, chosen),
+    supportingSentence: supportingSentence(weekday, chosen, timeZone),
     encouragement: "You got this!"
   };
 }

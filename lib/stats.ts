@@ -30,18 +30,18 @@ export type DashboardStats = {
   };
 };
 
-function formatClock(minuteOfDay: number): string {
+function formatClock(minuteOfDay: number, timeZone: string): string {
   return new Date(Date.UTC(2026, 0, 1, Math.floor(minuteOfDay / 60), minuteOfDay % 60)).toLocaleTimeString("en-US", {
-    timeZone: WRITING_TZ,
+    timeZone,
     hour: "numeric",
     minute: "2-digit"
   });
 }
 
-export function calculateDashboardStats(sessions: WritingSession[], now = new Date()): DashboardStats {
-  const byDay = aggregateDays(sessions);
+export function calculateDashboardStats(sessions: WritingSession[], now = new Date(), timeZone = WRITING_TZ): DashboardStats {
+  const byDay = aggregateDays(sessions, timeZone);
   const dayKeys = Object.keys(byDay).sort();
-  const todayKey = todayYmdInWritingTz(now);
+  const todayKey = todayYmdInWritingTz(now, timeZone);
   const monthKey = monthKeyFromYmd(todayKey);
   const yearKey = yearKeyFromYmd(todayKey);
 
@@ -74,7 +74,7 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
   const diff = dailyNow - dailyPrev;
   const pct = dailyPrev ? Math.round((diff / dailyPrev) * 100) : 0;
 
-  const rec = buildWritingRecommendation(sessions, now, DEFAULT_RECOMMENDATION_POLICY);
+  const rec = buildWritingRecommendation(sessions, now, DEFAULT_RECOMMENDATION_POLICY, timeZone);
   const targetLabel = rec.target === "today" ? "today" : "tomorrow";
 
   return {
@@ -86,7 +86,7 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
     trend: { dailyNow, dailyPrev, diff, pct, currentPeriod, previousPeriod },
     motivation: {
       ...rec,
-      headline: `Write ${targetLabel} at ${formatClock(rec.suggestedStartMinutes)} for about ${rec.suggestedDurationMinutes} minutes.`,
+      headline: `Write ${targetLabel} at ${formatClock(rec.suggestedStartMinutes, timeZone)} for about ${rec.suggestedDurationMinutes} minutes.`,
       detail: rec.supportingSentence
     }
   };

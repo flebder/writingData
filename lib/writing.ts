@@ -15,12 +15,7 @@ export const WRITING_TZ = "America/Los_Angeles";
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
-const ymdFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: WRITING_TZ,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit"
-});
+const ymdFormatters = new Map<string, Intl.DateTimeFormat>();
 
 export const FALLBACK_SESSIONS: WritingSession[] = [
   { id: "fallback-1", start: "2026-04-01T16:00:00.000Z", end: "2026-04-01T16:45:00.000Z" },
@@ -28,8 +23,37 @@ export const FALLBACK_SESSIONS: WritingSession[] = [
   { id: "fallback-3", start: "2026-04-04T06:30:00.000Z", end: "2026-04-04T07:05:00.000Z" }
 ];
 
-const tzHourFormatter = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, hour: "numeric", hour12: false });
-const tzMinuteFormatter = new Intl.DateTimeFormat("en-US", { timeZone: WRITING_TZ, minute: "2-digit" });
+const tzHourFormatters = new Map<string, Intl.DateTimeFormat>();
+const tzMinuteFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function getYmdFormatter(timeZone: string) {
+  const existing = ymdFormatters.get(timeZone);
+  if (existing) return existing;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  ymdFormatters.set(timeZone, formatter);
+  return formatter;
+}
+
+function getHourFormatter(timeZone: string) {
+  const existing = tzHourFormatters.get(timeZone);
+  if (existing) return existing;
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hour12: false });
+  tzHourFormatters.set(timeZone, formatter);
+  return formatter;
+}
+
+function getMinuteFormatter(timeZone: string) {
+  const existing = tzMinuteFormatters.get(timeZone);
+  if (existing) return existing;
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone, minute: "2-digit" });
+  tzMinuteFormatters.set(timeZone, formatter);
+  return formatter;
+}
 
 export function parseTzOffsetMinutes(utcMs: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -43,30 +67,30 @@ export function parseTzOffsetMinutes(utcMs: number, timeZone: string): number {
   return sign * (Number(m[2]) * 60 + Number(m[3] || "0"));
 }
 
-export function zonedLocalToUtc(year: number, month: number, day: number, hour: number, minute: number, second = 0) {
+export function zonedLocalToUtc(year: number, month: number, day: number, hour: number, minute: number, second = 0, timeZone = WRITING_TZ) {
   const baseUtc = Date.UTC(year, month - 1, day, hour, minute, second);
   let guess = baseUtc;
   for (let i = 0; i < 3; i += 1) {
-    const offset = parseTzOffsetMinutes(guess, WRITING_TZ);
+    const offset = parseTzOffsetMinutes(guess, timeZone);
     guess = Date.UTC(year, month - 1, day, hour, minute, second) - offset * MINUTE_MS;
   }
   return new Date(guess);
 }
 
-export function getYmdInWritingTz(date: Date): string {
-  return ymdFormatter.format(date);
+export function getYmdInWritingTz(date: Date, timeZone = WRITING_TZ): string {
+  return getYmdFormatter(timeZone).format(date);
 }
 
-export function getHourInWritingTz(date: Date): number {
-  return Number(tzHourFormatter.format(date));
+export function getHourInWritingTz(date: Date, timeZone = WRITING_TZ): number {
+  return Number(getHourFormatter(timeZone).format(date));
 }
 
-export function getMinuteInWritingTz(date: Date): number {
-  return Number(tzMinuteFormatter.format(date));
+export function getMinuteInWritingTz(date: Date, timeZone = WRITING_TZ): number {
+  return Number(getMinuteFormatter(timeZone).format(date));
 }
 
-export function todayYmdInWritingTz(now: Date): string {
-  return getYmdInWritingTz(now);
+export function todayYmdInWritingTz(now: Date, timeZone = WRITING_TZ): string {
+  return getYmdInWritingTz(now, timeZone);
 }
 
 export function monthKeyFromYmd(ymd: string): string {
@@ -136,16 +160,16 @@ export function normalizeDate(value: string): Date | null {
   return null;
 }
 
-export function splitSessionAcrossDays(start: Date, end: Date) {
+export function splitSessionAcrossDays(start: Date, end: Date, timeZone = WRITING_TZ) {
   const chunks: Array<{ date: string; minutes: number }> = [];
   let cursor = start.getTime();
   const endTs = end.getTime();
 
   while (cursor < endTs) {
-    const currentYmd = getYmdInWritingTz(new Date(cursor));
+    const currentYmd = getYmdInWritingTz(new Date(cursor), timeZone);
     const nextYmd = addDaysToYmd(currentYmd, 1);
     const [ny, nm, nd] = nextYmd.split("-").map(Number);
-    const nextMidnightUtc = zonedLocalToUtc(ny, nm, nd, 0, 0, 0).getTime();
+    const nextMidnightUtc = zonedLocalToUtc(ny, nm, nd, 0, 0, 0, timeZone).getTime();
     const chunkEnd = Math.min(endTs, nextMidnightUtc);
     const minutes = Math.max(0, Math.floor((chunkEnd - cursor) / MINUTE_MS));
     if (minutes > 0) chunks.push({ date: currentYmd, minutes });
@@ -222,10 +246,10 @@ export function parseCsvSessions(csv: string): WritingSession[] {
   return sessions.sort((a, b) => a.start.localeCompare(b.start));
 }
 
-export function aggregateDays(sessions: WritingSession[]): Record<string, DayBucket> {
+export function aggregateDays(sessions: WritingSession[], timeZone = WRITING_TZ): Record<string, DayBucket> {
   const byDay: Record<string, DayBucket> = {};
   for (const session of sessions) {
-    for (const chunk of splitSessionAcrossDays(new Date(session.start), new Date(session.end))) {
+    for (const chunk of splitSessionAcrossDays(new Date(session.start), new Date(session.end), timeZone)) {
       if (!byDay[chunk.date]) byDay[chunk.date] = { date: chunk.date, minutes: 0, sessions: [] };
       byDay[chunk.date].minutes += chunk.minutes;
       byDay[chunk.date].sessions.push(session);
