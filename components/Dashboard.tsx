@@ -13,8 +13,6 @@ type LinePoint = {
   date: string;
   minutes: number;
 };
-type YearDayCell = { ymd: string; inYear: boolean };
-type YearWeek = { days: YearDayCell[] };
 
 const fmtMinutes = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`);
 const level = (min: number) => (!min ? "none" : min < 30 ? "below" : min < 60 ? "baseline" : min < 120 ? "goal" : "super");
@@ -36,32 +34,13 @@ function ymdFromUtcDate(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 
-function buildGithubYearGrid(year: number): { weeks: YearWeek[]; monthLabels: Array<{ name: string; weekIndex: number }> } {
-  const jan1 = new Date(Date.UTC(year, 0, 1));
-  const dec31 = new Date(Date.UTC(year, 11, 31));
-  const gridStart = new Date(Date.UTC(year, 0, 1 - jan1.getUTCDay()));
-  const gridEnd = new Date(Date.UTC(year, 11, 31 + (6 - dec31.getUTCDay())));
-
-  const weeks: YearWeek[] = [];
-  const monthLabels: Array<{ name: string; weekIndex: number }> = [];
-
-  let week: YearDayCell[] = [];
-  let cursor = new Date(gridStart);
-  while (cursor <= gridEnd) {
-    const ymd = ymdFromUtcDate(cursor);
-    const inYear = cursor.getUTCFullYear() === year;
-    if (cursor.getUTCDate() === 1 && inYear) {
-      monthLabels.push({ name: cursor.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }), weekIndex: weeks.length });
-    }
-    week.push({ ymd, inYear });
-    if (week.length === 7) {
-      weeks.push({ days: week });
-      week = [];
-    }
-    cursor = new Date(cursor.getTime() + 86_400_000);
-  }
-
-  return { weeks, monthLabels };
+function buildMonthMiniCalendar(year: number, month: number): Array<Date | null> {
+  const first = new Date(Date.UTC(year, month, 1));
+  const total = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const cells: Array<Date | null> = Array.from({ length: first.getUTCDay() }, () => null);
+  for (let d = 1; d <= total; d += 1) cells.push(new Date(Date.UTC(year, month, d)));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
 }
 
 function startOfDayUtcFromYmd(day: string): number {
@@ -79,10 +58,11 @@ function buildMonthLineData(monthDays: Array<Date | null>, byDay: Record<string,
     .map((d) => {
       const day = d as Date;
       const key = getYmdInWritingTz(day, timeZone);
+      const rolling7 = Array.from({ length: 7 }, (_, i) => byDay[addDaysToYmd(key, -i)]?.minutes || 0).reduce((sum, v) => sum + v, 0);
       return {
         tooltipLabel: formatYmdLabel(key, dateFmt, timeZone),
         date: key,
-        minutes: byDay[key]?.minutes || 0
+        minutes: rolling7
       };
     });
 }
@@ -166,7 +146,14 @@ export default function Dashboard() {
     return cells;
   }, [displayDate]);
 
-  const yearGrid = useMemo(() => buildGithubYearGrid(displayDate.getFullYear()), [displayDate]);
+  const months = useMemo(() => {
+    const y = displayDate.getFullYear();
+    return Array.from({ length: 12 }, (_, m) => ({
+      month: m,
+      name: new Date(Date.UTC(y, m, 1)).toLocaleDateString(undefined, { month: "long", timeZone: "UTC" }),
+      cells: buildMonthMiniCalendar(y, m)
+    }));
+  }, [displayDate]);
 
   const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), viewerTimeZone), [payload, viewerTimeZone]);
 
@@ -254,32 +241,7 @@ export default function Dashboard() {
           </div>
         ) : calendarMode === "grid" ? (
           <div className="yearWrap">
-            <div className="ghMonths">
-              {yearGrid.monthLabels.map((m) => (
-                <span key={`${m.name}-${m.weekIndex}`} style={{ gridColumnStart: m.weekIndex + 1 }}>{m.name}</span>
-              ))}
-            </div>
-            <div className="ghGrid">
-              {yearGrid.weeks.map((week, weekIdx) => (
-                <div key={weekIdx} className="ghWeekCol">
-                  {week.days.map((day) => {
-                    if (!day.inYear) return <div key={day.ymd} className="mini ghEmpty" />;
-                    const min = byDay[day.ymd]?.minutes || 0;
-                    const missed = isMissedDay(day.ymd, min, todayKey);
-                    return (
-                      <button
-                        key={day.ymd}
-                        className={`mini ${level(min)} ${missed ? "zeroPast" : ""}`}
-                        onClick={() => setSelectedDay(day.ymd)}
-                        onMouseEnter={(e) => setHover({ day: day.ymd, x: e.clientX, y: e.clientY })}
-                        onMouseMove={(e) => setHover({ day: day.ymd, x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHover(null)}
-                      />
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
+            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(displayDate.getFullYear(), m.month, 1)); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); return <button key={key} className={`mini ${level(min)} ${missed ? "zeroPast" : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />; })}</div></div>)}
           </div>
         ) : (
           <div className="lineWrap">
@@ -292,7 +254,7 @@ export default function Dashboard() {
               {viewMode === "month" && lineData.map((p, i) => <circle key={`${p.date}-${i}`} cx={7 + (i / Math.max(1, lineData.length - 1)) * 91} cy={38 - (p.minutes / maxLine) * 32} r="1" fill="#2f7f61" onMouseEnter={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseLeave={() => setLineHover(null)} />)}
               {viewMode === "year" && lineData.map((p, i) => <rect key={`${p.date}-${i}`} x={7 + (i / Math.max(1, lineData.length - 1)) * 91 - 0.5} y={0} width={1} height={42} fill="transparent" onMouseEnter={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setLineHover({ item: p, x: e.clientX, y: e.clientY })} onMouseLeave={() => setLineHover(null)} />)}
             </svg>
-            <p className="axisLabel">{viewMode === "month" ? "Daily writing this month" : "Weekly writing totals this year"}</p>
+            <p className="axisLabel">{viewMode === "month" ? "Rolling 7-day writing total (month view)" : "Weekly writing totals this year"}</p>
           </div>
         )}
 
