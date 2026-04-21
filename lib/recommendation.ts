@@ -1,4 +1,4 @@
-import { addDaysToYmd, getHourInWritingTz, getMinuteInWritingTz, getYmdInWritingTz, todayYmdInWritingTz, WRITING_TZ, type WritingSession } from "@/lib/writing";
+import { addDaysToYmd, getHourInWritingTz, getMinuteInWritingTz, getYmdInWritingTz, todayYmdInWritingTz, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 
 export type TimeBandPolicy = {
   preferred: { startMinute: number; endMinute: number; weight: number };
@@ -14,6 +14,8 @@ export type RecommendationPolicy = {
   targetGoalMinutes: number;
   softMaxRecommendationMinutes: number;
   durationNudgeMinutes: number;
+  futureBufferMinutes: number;
+  confidenceK: number;
   timeBands: TimeBandPolicy;
 };
 
@@ -25,10 +27,12 @@ export const DEFAULT_RECOMMENDATION_POLICY: RecommendationPolicy = {
   targetGoalMinutes: 60,
   softMaxRecommendationMinutes: 75,
   durationNudgeMinutes: 6,
+  futureBufferMinutes: 10,
+  confidenceK: 4,
   timeBands: {
     preferred: { startMinute: 5 * 60 + 30, endMinute: 22 * 60 + 30, weight: 1 },
-    acceptable: { startMinute: 22 * 60 + 30, endMinute: 23 * 60 + 59, weight: 0.72 },
-    penalized: { startMinute: 0, endMinute: 5 * 60 + 29, weight: 0.18 }
+    acceptable: { startMinute: 22 * 60 + 30, endMinute: 23 * 60 + 59, weight: 0.62 },
+    penalized: { startMinute: 0, endMinute: 5 * 60 + 29, weight: 0.08 }
   }
 };
 
@@ -162,17 +166,24 @@ function rankClusters(buckets: BucketAggregate[], policy: RecommendationPolicy):
   if (!buckets.length) return [];
   const maxFreq = Math.max(...buckets.map((b) => b.weightedFrequency));
   const maxTotal = Math.max(...buckets.map((b) => b.weightedTotalMinutes));
-  const maxAvg = Math.max(...buckets.map((b) => b.weightedFrequency > 0 ? b.weightedDurationMeanNumerator / b.weightedFrequency : 0));
+  const baselineAvg = buckets.reduce((sum, b) => sum + b.rawTotalMinutes, 0) / Math.max(1, buckets.reduce((sum, b) => sum + b.sessionCount, 0));
+  const adjustedAverages = buckets.map((b) => {
+    const rawAvg = b.weightedFrequency > 0 ? b.weightedDurationMeanNumerator / b.weightedFrequency : baselineAvg;
+    const confidence = b.sessionCount / (b.sessionCount + policy.confidenceK);
+    return rawAvg * confidence + baselineAvg * (1 - confidence);
+  });
+  const maxAvg = Math.max(...adjustedAverages);
 
   return buckets
-    .map((bucket) => {
-      const avg = bucket.weightedFrequency > 0 ? bucket.weightedDurationMeanNumerator / bucket.weightedFrequency : 0;
+    .map((bucket, idx) => {
+      const avg = adjustedAverages[idx];
+      const confidence = bucket.sessionCount / (bucket.sessionCount + policy.confidenceK);
       const weightedScore =
         normalize(bucket.weightedFrequency, maxFreq) * 0.25 +
         normalize(avg, maxAvg) * 0.4 +
         normalize(bucket.weightedTotalMinutes, maxTotal) * 0.2 +
-        Math.min(1, bucket.sessionCount / 8) * 0.15;
-      const score = weightedScore * bandWeight(bucket.bucketStart, policy);
+        Math.min(1, bucket.sessionCount / 10) * 0.15;
+      const score = weightedScore * bandWeight(bucket.bucketStart, policy) * (0.35 + 0.65 * confidence);
       return toCluster(bucket, score, policy);
     })
     .sort((a, b) => b.score - a.score || b.averageDurationMinutes - a.averageDurationMinutes || b.sessionCount - a.sessionCount || a.representativeMinute - b.representativeMinute);
@@ -197,13 +208,19 @@ function buildDurationRecommendation(chosen: ClusterStats | null, sessions: Writ
   return clamp(adjusted, policy.minimumRecommendationMinutes, policy.softMaxRecommendationMinutes);
 }
 
-function pickBestValidClusterForToday(candidates: ClusterStats[], nowMinute: number): ClusterStats | null {
-  return candidates.find((cluster) => cluster.representativeMinute >= nowMinute) || null;
+function isClusterStillValidToday(cluster: ClusterStats, targetYmd: string, now: Date, policy: RecommendationPolicy): boolean {
+  const [y, m, d] = targetYmd.split("-").map(Number);
+  const scheduledUtc = zonedLocalToUtc(y, m, d, Math.floor(cluster.representativeMinute / 60), cluster.representativeMinute % 60).getTime();
+  return scheduledUtc >= now.getTime() + policy.futureBufferMinutes * 60_000;
+}
+
+function pickBestValidClusterForToday(candidates: ClusterStats[], targetYmd: string, now: Date, policy: RecommendationPolicy): ClusterStats | null {
+  return candidates.find((cluster) => isClusterStillValidToday(cluster, targetYmd, now, policy)) || null;
 }
 
 function supportingSentence(weekday: string, chosen: ClusterStats | null): string {
   if (!chosen) return "Use this as a steady writing block and build momentum.";
-  return `Your strongest ${weekday} window is ${formatClock(chosen.bucketStart)}–${formatClock(chosen.bucketEnd)}.`;
+  return `${weekday}s are most reliable around ${formatClock(chosen.bucketStart)}–${formatClock(chosen.bucketEnd)} (${chosen.sessionCount} sessions).`;
 }
 
 export function buildWritingRecommendation(sessions: WritingSession[], now = new Date(), policy: RecommendationPolicy = DEFAULT_RECOMMENDATION_POLICY): WritingRecommendation {
@@ -227,7 +244,8 @@ export function buildWritingRecommendation(sessions: WritingSession[], now = new
   const generalClusters = rankClusters(aggregateBuckets(validSessions, nowYmd, policy), policy);
 
   let chosen: ClusterStats | null = weekdayClusters[0] || null;
-  let alternative: ClusterStats | null = weekdayClusters[1] || null;
+  let alternative: ClusterStats | null =
+    weekdayClusters.find((c) => c.bucketStart !== chosen?.bucketStart && c.sessionCount >= 3) || null;
 
   if (!chosen || weekdaySessions.length < policy.minimumWeekdaySamples) {
     chosen = generalClusters[0] || null;
@@ -235,17 +253,18 @@ export function buildWritingRecommendation(sessions: WritingSession[], now = new
   }
 
   if (target === "today") {
-    const weekdayValid = pickBestValidClusterForToday(weekdayClusters, nowMinute);
-    const generalValid = pickBestValidClusterForToday(generalClusters, nowMinute);
+    const weekdayValid = pickBestValidClusterForToday(weekdayClusters, targetYmd, now, policy);
+    const generalValid = pickBestValidClusterForToday(generalClusters, targetYmd, now, policy);
     if (weekdayValid) {
       chosen = weekdayValid;
-      alternative = weekdayClusters.find((c) => c.bucketStart !== weekdayValid.bucketStart) || null;
+      alternative = weekdayClusters.find((c) => c.bucketStart !== weekdayValid.bucketStart && c.sessionCount >= 3) || null;
     } else if (generalValid) {
       chosen = generalValid;
-      alternative = generalClusters.find((c) => c.bucketStart !== generalValid.bucketStart) || null;
+      alternative = generalClusters.find((c) => c.bucketStart !== generalValid.bucketStart && c.sessionCount >= 3) || null;
     } else {
       // If all practical windows are already in the past and user has not written yet, choose the nearest upcoming slot today.
-      const fallbackMinute = clamp(roundToNearest(nowMinute + 30, policy.bucketSizeMinutes), nowMinute, 23 * 60 + 59);
+      const earliestFallback = Math.max(policy.timeBands.preferred.startMinute, nowMinute + policy.futureBufferMinutes);
+      const fallbackMinute = clamp(roundToNearest(earliestFallback, policy.bucketSizeMinutes), earliestFallback, 23 * 60 + 59);
       chosen = {
         bucketStart: toBucket(fallbackMinute, policy.bucketSizeMinutes),
         bucketEnd: Math.min(23 * 60 + 59, toBucket(fallbackMinute, policy.bucketSizeMinutes) + policy.bucketSizeMinutes),
@@ -255,7 +274,7 @@ export function buildWritingRecommendation(sessions: WritingSession[], now = new
         averageDurationMinutes: 45,
         totalMinutes: 0
       };
-      alternative = null;
+      alternative = generalClusters.find((c) => c.sessionCount >= 3) || null;
     }
   }
 
