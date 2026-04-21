@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDaysToYmd, aggregateDays, getHourInWritingTz, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
+import { addDaysToYmd, aggregateDays, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
@@ -13,6 +13,8 @@ type LinePoint = {
   date: string;
   minutes: number;
 };
+type YearDayCell = { ymd: string; inYear: boolean };
+type YearWeek = { days: YearDayCell[] };
 
 const fmtMinutes = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`);
 const level = (min: number) => (!min ? "none" : min < 30 ? "below" : min < 60 ? "baseline" : min < 120 ? "goal" : "super");
@@ -28,6 +30,38 @@ const monthOrdinal = (s: string, timeZone: string) => {
 function formatYmdLabel(ymd: string, dateFmt: Intl.DateTimeFormat, timeZone: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   return dateFmt.format(zonedLocalToUtc(y, m, d, 12, 0, 0, timeZone));
+}
+
+function ymdFromUtcDate(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function buildGithubYearGrid(year: number): { weeks: YearWeek[]; monthLabels: Array<{ name: string; weekIndex: number }> } {
+  const jan1 = new Date(Date.UTC(year, 0, 1));
+  const dec31 = new Date(Date.UTC(year, 11, 31));
+  const gridStart = new Date(Date.UTC(year, 0, 1 - jan1.getUTCDay()));
+  const gridEnd = new Date(Date.UTC(year, 11, 31 + (6 - dec31.getUTCDay())));
+
+  const weeks: YearWeek[] = [];
+  const monthLabels: Array<{ name: string; weekIndex: number }> = [];
+
+  let week: YearDayCell[] = [];
+  let cursor = new Date(gridStart);
+  while (cursor <= gridEnd) {
+    const ymd = ymdFromUtcDate(cursor);
+    const inYear = cursor.getUTCFullYear() === year;
+    if (cursor.getUTCDate() === 1 && inYear) {
+      monthLabels.push({ name: cursor.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" }), weekIndex: weeks.length });
+    }
+    week.push({ ymd, inYear });
+    if (week.length === 7) {
+      weeks.push({ days: week });
+      week = [];
+    }
+    cursor = new Date(cursor.getTime() + 86_400_000);
+  }
+
+  return { weeks, monthLabels };
 }
 
 function startOfDayUtcFromYmd(day: string): number {
@@ -132,10 +166,7 @@ export default function Dashboard() {
     return cells;
   }, [displayDate]);
 
-  const months = useMemo(() => {
-    const y = displayDate.getFullYear();
-    return Array.from({ length: 12 }, (_, m) => ({ month: m, name: new Date(y, m, 1).toLocaleDateString(undefined, { month: "long" }), days: Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => new Date(y, m, i + 1)) }));
-  }, [displayDate]);
+  const yearGrid = useMemo(() => buildGithubYearGrid(displayDate.getFullYear()), [displayDate]);
 
   const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), viewerTimeZone), [payload, viewerTimeZone]);
 
@@ -157,18 +188,25 @@ export default function Dashboard() {
   const hourly = useMemo(() => {
     const bins = Array.from({ length: 24 }, (_, h) => ({ hour: h, days: new Set<string>(), totalMinutes: 0, avgMinutes: 0, daysCount: 0 }));
     for (const s of payload?.sessions || []) {
-      const st = new Date(s.start);
-      const et = new Date(s.end);
-      let cursor = new Date(st);
-      while (cursor < et) {
-        const h = getHourInWritingTz(cursor, viewerTimeZone);
-        const dayKey = getYmdInWritingTz(cursor, viewerTimeZone);
-        const [yy, mm, dd] = dayKey.split("-").map(Number);
-        const nextHourUtc = zonedLocalToUtc(yy, mm, dd, h + 1, 0, 0, viewerTimeZone);
-        const end = nextHourUtc < et ? nextHourUtc : et;
+      const st = new Date(s.start).getTime();
+      const et = new Date(s.end).getTime();
+      let cursorMs = st;
+      while (cursorMs < et) {
+        const cursor = new Date(cursorMs);
+        const h = cursor.getUTCHours();
+        const dayKey = s.dateKey || ymdFromUtcDate(cursor);
+        const nextHourMs = Date.UTC(
+          cursor.getUTCFullYear(),
+          cursor.getUTCMonth(),
+          cursor.getUTCDate(),
+          cursor.getUTCHours() + 1,
+          0,
+          0
+        );
+        const chunkEndMs = Math.min(et, nextHourMs);
         bins[h].days.add(dayKey);
-        bins[h].totalMinutes += Math.max(1, Math.round((end.getTime() - cursor.getTime()) / 60000));
-        cursor = end;
+        bins[h].totalMinutes += Math.max(1, Math.round((chunkEndMs - cursorMs) / 60000));
+        cursorMs = chunkEndMs;
       }
     }
     bins.forEach((b) => {
@@ -216,7 +254,32 @@ export default function Dashboard() {
           </div>
         ) : calendarMode === "grid" ? (
           <div className="yearWrap">
-            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(displayDate.getFullYear(), m.month, 1)); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.days.map((d) => { const key = getYmdInWritingTz(d, viewerTimeZone); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); return <button key={key} className={`mini ${level(min)} ${missed ? "zeroPast" : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />; })}</div></div>)}
+            <div className="ghMonths">
+              {yearGrid.monthLabels.map((m) => (
+                <span key={`${m.name}-${m.weekIndex}`} style={{ gridColumnStart: m.weekIndex + 1 }}>{m.name}</span>
+              ))}
+            </div>
+            <div className="ghGrid">
+              {yearGrid.weeks.map((week, weekIdx) => (
+                <div key={weekIdx} className="ghWeekCol">
+                  {week.days.map((day) => {
+                    if (!day.inYear) return <div key={day.ymd} className="mini ghEmpty" />;
+                    const min = byDay[day.ymd]?.minutes || 0;
+                    const missed = isMissedDay(day.ymd, min, todayKey);
+                    return (
+                      <button
+                        key={day.ymd}
+                        className={`mini ${level(min)} ${missed ? "zeroPast" : ""}`}
+                        onClick={() => setSelectedDay(day.ymd)}
+                        onMouseEnter={(e) => setHover({ day: day.ymd, x: e.clientX, y: e.clientY })}
+                        onMouseMove={(e) => setHover({ day: day.ymd, x: e.clientX, y: e.clientY })}
+                        onMouseLeave={() => setHover(null)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="lineWrap">
@@ -245,7 +308,7 @@ export default function Dashboard() {
         <article className="panel"><h3>Best Day This Year</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisYear.date, viewerTimeZone)}</span><small>{fmtMinutes(stats.bestDayThisYear.minutes)}</small></p></article>
       </section>
 
-      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>You’re writing {fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"} per day compared to the prior week{stats.trend.dailyPrev ? ` (${Math.abs(stats.trend.pct)}% ${stats.trend.diff >= 0 ? "more" : "less"})` : ""}.</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p><strong>{stats.motivation.headline}</strong><br />{stats.motivation.encouragement}</p></article></section>
+      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>You’re writing <strong>{fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"}</strong> per day compared to the prior week{stats.trend.dailyPrev ? ` (${Math.abs(stats.trend.pct)}% ${stats.trend.diff >= 0 ? "more" : "less"})` : ""}.</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>Write <strong>{stats.motivation.target === "today" ? "today" : "tomorrow"}</strong> at <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.suggestedStartMinutes/60),stats.motivation.suggestedStartMinutes%60)))}</strong> for <strong>{stats.motivation.suggestedDurationMinutes} minutes</strong>.<br />{stats.motivation.encouragement}</p></article></section>
 
       <section className="panel chartPanel">
         <h3>Average writing time by weekday</h3>
