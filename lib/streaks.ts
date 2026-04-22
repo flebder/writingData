@@ -55,12 +55,11 @@ export function computeStreakSummary(byDay: Record<string, { minutes: number }>,
   const todayMinutes = byDay[todayYmd]?.minutes || 0;
   const todayQualified = todayMinutes >= baselineMinutes;
 
-  const all = buildSegments(byDay, baselineMinutes);
-  const anchor = todayQualified ? todayYmd : addDaysToYmd(todayYmd, -1);
-  const current = all.find((s) => s.end === anchor) || null;
-
   const yearPrefix = `${todayYmd.slice(0, 4)}-`;
   const yearSegments = buildSegments(byDay, baselineMinutes, (ymd) => ymd.startsWith(yearPrefix));
+  const all = buildSegments(byDay, baselineMinutes);
+  const anchor = todayQualified ? todayYmd : addDaysToYmd(todayYmd, -1);
+  const current = yearSegments.find((s) => s.end === anchor) || null;
 
   return {
     current,
