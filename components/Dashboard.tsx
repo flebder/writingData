@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDaysToYmd, aggregateDays, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
+import { addDaysToYmd, aggregateDays, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
@@ -99,14 +99,14 @@ function buildYearLineData(year: number, byDay: Record<string, { minutes: number
 }
 
 export default function Dashboard() {
-  const viewerTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || WRITING_TZ;
+  const canonicalTimeZone = "UTC";
   const timeFmt = useMemo(
-    () => new Intl.DateTimeFormat("en-US", { timeZone: viewerTimeZone, hour: "numeric", minute: "2-digit" }),
-    [viewerTimeZone]
+    () => new Intl.DateTimeFormat("en-US", { timeZone: canonicalTimeZone, hour: "numeric", minute: "2-digit" }),
+    [canonicalTimeZone]
   );
   const dateFmt = useMemo(
-    () => new Intl.DateTimeFormat("en-US", { timeZone: viewerTimeZone, weekday: "long", month: "long", day: "numeric", year: "numeric" }),
-    [viewerTimeZone]
+    () => new Intl.DateTimeFormat("en-US", { timeZone: canonicalTimeZone, weekday: "long", month: "long", day: "numeric", year: "numeric" }),
+    [canonicalTimeZone]
   );
   const [payload, setPayload] = useState<ApiPayload | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
@@ -133,8 +133,8 @@ export default function Dashboard() {
     return () => window.removeEventListener("keydown", onEsc);
   }, []);
 
-  const byDay = useMemo(() => aggregateDays(payload?.sessions || [], viewerTimeZone), [payload, viewerTimeZone]);
-  const todayKey = todayYmdInWritingTz(new Date(), viewerTimeZone);
+  const byDay = useMemo(() => aggregateDays(payload?.sessions || [], canonicalTimeZone), [payload, canonicalTimeZone]);
+  const todayKey = todayYmdInWritingTz(new Date(), canonicalTimeZone);
 
   const monthDays = useMemo(() => {
     const y = displayDate.getFullYear();
@@ -155,14 +155,14 @@ export default function Dashboard() {
     }));
   }, [displayDate]);
 
-  const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), viewerTimeZone), [payload, viewerTimeZone]);
+  const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), canonicalTimeZone), [payload, canonicalTimeZone]);
 
   const weekdayBars = useMemo(() => {
     const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const rows = names.map((name) => ({ name, total: 0, count: 0, avg: 0 }));
-    const weekdayFmt = new Intl.DateTimeFormat("en-US", { timeZone: viewerTimeZone, weekday: "short" });
+    const weekdayFmt = new Intl.DateTimeFormat("en-US", { timeZone: canonicalTimeZone, weekday: "short" });
     for (const [d, b] of Object.entries(byDay)) {
-      const idx = formatYmdLabel(d, weekdayFmt, viewerTimeZone);
+      const idx = formatYmdLabel(d, weekdayFmt, canonicalTimeZone);
       const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
       const rowIdx = map[idx] ?? 0;
       rows[rowIdx].total += b.minutes;
@@ -170,7 +170,7 @@ export default function Dashboard() {
     }
     rows.forEach((r) => (r.avg = r.count ? Math.round(r.total / r.count) : 0));
     return rows;
-  }, [byDay, viewerTimeZone]);
+  }, [byDay, canonicalTimeZone]);
 
   const hourly = useMemo(() => {
     const bins = Array.from({ length: 24 }, (_, h) => ({ hour: h, days: new Set<string>(), totalMinutes: 0, avgMinutes: 0, daysCount: 0 }));
@@ -201,12 +201,12 @@ export default function Dashboard() {
       b.avgMinutes = b.daysCount ? Math.round(b.totalMinutes / b.daysCount) : 0;
     });
     return bins;
-  }, [payload, viewerTimeZone]);
+  }, [payload, canonicalTimeZone]);
 
   const lineData = useMemo(() => {
-    if (viewMode === "month") return buildMonthLineData(monthDays, byDay, dateFmt, viewerTimeZone);
-    return buildYearLineData(displayDate.getFullYear(), byDay, viewerTimeZone);
-  }, [viewMode, monthDays, byDay, displayDate, dateFmt, viewerTimeZone]);
+    if (viewMode === "month") return buildMonthLineData(monthDays, byDay, dateFmt, canonicalTimeZone);
+    return buildYearLineData(displayDate.getFullYear(), byDay, canonicalTimeZone);
+  }, [viewMode, monthDays, byDay, displayDate, dateFmt, canonicalTimeZone]);
 
   const moveBack = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() - 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() - 1, 1));
   const moveNext = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() + 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 1));
@@ -218,7 +218,7 @@ export default function Dashboard() {
 
   return (
     <main className="journalShell">
-      <header className="hero"><h1>Writing Journal</h1><p>Calm insights for consistent creative practice.</p></header>
+      <header className="hero"><h1>Writing Journal</h1></header>
 
       <section className="panel calendarPanel">
         <div className="toolbar">
@@ -233,7 +233,7 @@ export default function Dashboard() {
           <div className="monthGrid">
             {monthDays.map((d, i) => {
               if (!d) return <div key={i} className="day empty" />;
-              const key = getYmdInWritingTz(d, viewerTimeZone);
+              const key = getYmdInWritingTz(d, canonicalTimeZone);
               const min = byDay[key]?.minutes || 0;
               const missed = isMissedDay(key, min, todayKey);
               return <button key={key} className={`day ${level(min)} ${missed ? "zeroPast" : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getDate()}</button>;
@@ -258,7 +258,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {hover && <div className="hoverTip" style={{ left: hover.x + 12, top: hover.y + 12 }}><strong>{formatYmdLabel(hover.day, dateFmt, viewerTimeZone)}</strong><span>{fmtMinutes(hovered?.minutes || 0)} written</span></div>}
+        {hover && <div className="hoverTip" style={{ left: hover.x + 12, top: hover.y + 12 }}><strong>{formatYmdLabel(hover.day, dateFmt, canonicalTimeZone)}</strong><span>{fmtMinutes(hovered?.minutes || 0)} written</span></div>}
         {lineHover && <div className="hoverTip" style={{ left: lineHover.x + 12, top: lineHover.y + 12 }}><strong>{lineHover.item.tooltipLabel}</strong><span>{fmtMinutes(lineHover.item.minutes)} written</span></div>}
       </section>
 
@@ -266,8 +266,8 @@ export default function Dashboard() {
         <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.dailyAverage)}</p></article>
         <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.monthlyTotal)}</p></article>
         <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.yearlyTotal)}</p></article>
-        <article className="panel"><h3>Best Day This Month</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisMonth.date, viewerTimeZone)}</span><small>{fmtMinutes(stats.bestDayThisMonth.minutes)}</small></p></article>
-        <article className="panel"><h3>Best Day This Year</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisYear.date, viewerTimeZone)}</span><small>{fmtMinutes(stats.bestDayThisYear.minutes)}</small></p></article>
+        <article className="panel"><h3>Best Day This Month</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisMonth.date, canonicalTimeZone)}</span><small>{fmtMinutes(stats.bestDayThisMonth.minutes)}</small></p></article>
+        <article className="panel"><h3>Best Day This Year</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisYear.date, canonicalTimeZone)}</span><small>{fmtMinutes(stats.bestDayThisYear.minutes)}</small></p></article>
       </section>
 
       <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>You’re writing <strong>{fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"}</strong> per day compared to the prior week{stats.trend.dailyPrev ? ` (${Math.abs(stats.trend.pct)}% ${stats.trend.diff >= 0 ? "more" : "less"})` : ""}.</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>Write <strong>{stats.motivation.target === "today" ? "today" : "tomorrow"}</strong> at <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.suggestedStartMinutes/60),stats.motivation.suggestedStartMinutes%60)))}</strong> for <strong>{stats.motivation.suggestedDurationMinutes} minutes</strong>.<br />{stats.motivation.encouragement}</p></article></section>
@@ -278,11 +278,11 @@ export default function Dashboard() {
         <h3>Writing activity across the day</h3>
         <div className="hourHist">{hourly.map((h) => <div key={h.hour} className="hourCol" onMouseEnter={(e) => setHourHover({ hour: h.hour, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHourHover({ hour: h.hour, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHourHover(null)}><div className="hourBar" style={{ height: `${Math.max(8, (h.daysCount / maxHour) * 100)}%` }} /></div>)}</div>
         <div className="hourTicks">{Array.from({ length: 24 }, (_, i) => <span key={i} className={i % 3 === 0 ? "major" : "minor"}>{String(i).padStart(2, "0")}</span>)}</div>
-        <p className="axisLabel">Hours in day ({viewerTimeZone}), showing patterns of when you write.</p>
+        <p className="axisLabel">Hours in day (sheet canonical time), showing patterns of when you write.</p>
         {hourHover && <div className="hourTooltip" style={{ left: hourHover.x + 12, top: hourHover.y + 12 }}><strong>{String(hourHover.hour).padStart(2, "0")}:00</strong><span>Days written during this hour: {hourly[hourHover.hour].daysCount}</span><span>Average time written during this hour: {fmtMinutes(hourly[hourHover.hour].avgMinutes)}</span></div>}
       </section>
 
-      {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{formatYmdLabel(selected.date, dateFmt, viewerTimeZone)}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p><p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((s) => ({ session: s, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div>}
+      {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{formatYmdLabel(selected.date, dateFmt, canonicalTimeZone)}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p><p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((s) => ({ session: s, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div>}
 
       {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p>Current 7-day average: <strong>{fmtMinutes(stats.trend.dailyNow)}</strong></p><p>Comparison 7-day average: <strong>{fmtMinutes(stats.trend.dailyPrev)}</strong></p><p>Current period: {stats.trend.currentPeriod[0]} to {stats.trend.currentPeriod.at(-1)}</p><p>Comparison period: {stats.trend.previousPeriod[0]} to {stats.trend.previousPeriod.at(-1)}</p><p>Difference = {fmtMinutes(stats.trend.dailyNow)} - {fmtMinutes(stats.trend.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"} per day</strong>.</p></div></div>}
 
