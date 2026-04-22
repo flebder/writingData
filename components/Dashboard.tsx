@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDaysToYmd, aggregateDays, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
+import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
 type ViewMode = "month" | "year";
@@ -67,6 +68,15 @@ function buildMonthLineData(monthDays: Array<Date | null>, byDay: Record<string,
     });
 }
 
+function fmtDateRange(seg: StreakSegment | null): string {
+  if (!seg) return "-";
+  const start = new Date(`${seg.start}T12:00:00Z`);
+  const end = new Date(`${seg.end}T12:00:00Z`);
+  const startLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const endLabel = end.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return `${startLabel} – ${endLabel}`;
+}
+
 function buildYearLineData(year: number, byDay: Record<string, { minutes: number }>, timeZone: string): LinePoint[] {
   const rows: LinePoint[] = [];
   let cursor = `${year}-01-01`;
@@ -116,7 +126,7 @@ export default function Dashboard() {
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
   const [hourHover, setHourHover] = useState<{ hour: number; x: number; y: number } | null>(null);
   const [lineHover, setLineHover] = useState<{ item: LinePoint; x: number; y: number } | null>(null);
-  const [expanded, setExpanded] = useState<null | "trend" | "motivation">(null);
+  const [expanded, setExpanded] = useState<null | "trend" | "motivation" | "streak">(null);
 
   useEffect(() => {
     fetch("/api/sessions").then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
@@ -139,10 +149,10 @@ export default function Dashboard() {
   const monthDays = useMemo(() => {
     const y = displayDate.getFullYear();
     const m = displayDate.getMonth();
-    const first = new Date(y, m, 1);
-    const cells: Array<Date | null> = Array.from({ length: first.getDay() }, () => null);
-    const total = new Date(y, m + 1, 0).getDate();
-    for (let d = 1; d <= total; d += 1) cells.push(new Date(y, m, d));
+    const first = new Date(Date.UTC(y, m, 1));
+    const cells: Array<Date | null> = Array.from({ length: first.getUTCDay() }, () => null);
+    const total = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    for (let d = 1; d <= total; d += 1) cells.push(new Date(Date.UTC(y, m, d)));
     return cells;
   }, [displayDate]);
 
@@ -156,6 +166,7 @@ export default function Dashboard() {
   }, [displayDate]);
 
   const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), canonicalTimeZone), [payload, canonicalTimeZone]);
+  const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, 30), [byDay, todayKey]);
 
   const weekdayBars = useMemo(() => {
     const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -218,7 +229,7 @@ export default function Dashboard() {
 
   return (
     <main className="journalShell">
-      <header className="hero"><h1>Writing Journal</h1></header>
+      <header className="hero"><h1>Writing Journal</h1><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong>{streaks.current?.days ?? 0}</strong></button></header>
 
       <section className="panel calendarPanel">
         <div className="toolbar">
@@ -287,6 +298,7 @@ export default function Dashboard() {
       {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p>Current 7-day average: <strong>{fmtMinutes(stats.trend.dailyNow)}</strong></p><p>Comparison 7-day average: <strong>{fmtMinutes(stats.trend.dailyPrev)}</strong></p><p>Current period: {stats.trend.currentPeriod[0]} to {stats.trend.currentPeriod.at(-1)}</p><p>Comparison period: {stats.trend.previousPeriod[0]} to {stats.trend.previousPeriod.at(-1)}</p><p>Difference = {fmtMinutes(stats.trend.dailyNow)} - {fmtMinutes(stats.trend.dailyPrev)} = <strong>{fmtMinutes(Math.abs(stats.trend.diff))} {stats.trend.diff >= 0 ? "more" : "less"} per day</strong>.</p></div></div>}
 
       {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p>Target day: <strong>{stats.motivation.target === "today" ? "Today" : "Tomorrow"} ({stats.motivation.weekday})</strong></p><p>Suggested start: <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.suggestedStartMinutes/60),stats.motivation.suggestedStartMinutes%60)))}</strong></p><p>Suggested duration: <strong>{fmtMinutes(stats.motivation.suggestedDurationMinutes)}</strong></p><p>Chosen window: <strong>{stats.motivation.chosenCluster ? `${timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.chosenCluster.bucketStart/60),stats.motivation.chosenCluster.bucketStart%60)))}–${timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.chosenCluster.bucketEnd/60),stats.motivation.chosenCluster.bucketEnd%60)))}` : "n/a"}</strong></p><p>Sessions in this window: <strong>{stats.motivation.chosenCluster?.sessionCount ?? 0}</strong></p><p>Average duration in this window: <strong>{fmtMinutes(stats.motivation.chosenCluster?.averageDurationMinutes ?? stats.motivation.suggestedDurationMinutes)}</strong></p><p>{stats.motivation.detail}</p>{stats.motivation.alternativeCluster && <p>Next best window: <strong>{timeFmt.format(new Date(Date.UTC(2026,0,1,Math.floor(stats.motivation.alternativeCluster.bucketStart/60),stats.motivation.alternativeCluster.bucketStart%60)))}</strong> with {fmtMinutes(stats.motivation.alternativeCluster.averageDurationMinutes)} average sessions.</p>}</div></div>}
+      {expanded === "streak" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Streak details</h3><section className="stats"><article className="panel"><h3>Current streak</h3><p>{streaks.current?.days ?? 0} days</p><small>Range: {fmtDateRange(streaks.current)}</small></article><article className="panel"><h3>Current score</h3><p>{fmtMinutes(streaks.current?.scoreMinutes ?? 0)}</p><small>Baseline: 30m/day</small></article><article className="panel"><h3>Longest streak (year)</h3><p>{streaks.longestYear?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestYear)}</small></article><article className="panel"><h3>Best score (year)</h3><p>{fmtMinutes(streaks.bestScoreYear?.scoreMinutes ?? 0)}</p><small>{streaks.bestScoreYear ? `${streaks.bestScoreYear.days} days • ${fmtDateRange(streaks.bestScoreYear)}` : "-"}</small></article><article className="panel"><h3>Longest streak (all time)</h3><p>{streaks.longestAllTime?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestAllTime)}</small></article><article className="panel"><h3>Best score (all time)</h3><p>{fmtMinutes(streaks.bestScoreAllTime?.scoreMinutes ?? 0)}</p><small>{streaks.bestScoreAllTime ? `${streaks.bestScoreAllTime.days} days • ${fmtDateRange(streaks.bestScoreAllTime)}` : "-"}</small></article></section></div></div>}
     </main>
   );
 }
