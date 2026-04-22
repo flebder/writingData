@@ -9,6 +9,7 @@ export type DayBucket = {
   date: string; // canonical YYYY-MM-DD from sheet data
   minutes: number;
   sessions: WritingSession[];
+  sessionSegments: Array<{ session: WritingSession; countedMinutes: number; note: string }>;
 };
 
 export const SHEET_ID = "10vokY2B5p69eY_9CieUCzgfFY6NjJfKzAv36bAqj9Qg";
@@ -278,13 +279,42 @@ export function parseCsvSessions(csv: string): WritingSession[] {
 export function aggregateDays(sessions: WritingSession[], timeZone = WRITING_TZ): Record<string, DayBucket> {
   const byDay: Record<string, DayBucket> = {};
   for (const session of sessions) {
-    const duration = Math.max(1, Math.round((new Date(session.end).getTime() - new Date(session.start).getTime()) / MINUTE_MS));
-    const key = session.dateKey || getYmdInWritingTz(new Date(session.start), timeZone);
-    if (!byDay[key]) byDay[key] = { date: key, minutes: 0, sessions: [] };
-    byDay[key].minutes += duration;
-    byDay[key].sessions.push(session);
+    const startMs = new Date(session.start).getTime();
+    const endMs = new Date(session.end).getTime();
+    if (!(endMs > startMs)) continue;
+
+    const segments: Array<{ date: string; minutes: number }> = [];
+    let cursor = startMs;
+    while (cursor < endMs) {
+      const dt = new Date(cursor);
+      const nextMidnightMs = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate() + 1, 0, 0, 0);
+      const chunkEnd = Math.min(endMs, nextMidnightMs);
+      const minutes = Math.max(1, Math.round((chunkEnd - cursor) / MINUTE_MS));
+      segments.push({ date: ymdFromUtcParts(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate()), minutes });
+      cursor = chunkEnd;
+    }
+
+    segments.forEach((segment, idx) => {
+      if (!byDay[segment.date]) byDay[segment.date] = { date: segment.date, minutes: 0, sessions: [], sessionSegments: [] };
+      byDay[segment.date].minutes += segment.minutes;
+      byDay[segment.date].sessions.push(session);
+
+      const note =
+        segments.length === 1
+          ? ""
+          : idx === 0
+            ? `(${segment.minutes}m counted before midnight)`
+            : idx === segments.length - 1
+              ? `(${segment.minutes}m counted after midnight)`
+              : `(${segment.minutes}m counted this day)`;
+      byDay[segment.date].sessionSegments.push({ session, countedMinutes: segment.minutes, note });
+    });
   }
   return byDay;
+}
+
+function ymdFromUtcParts(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export function rollingWeekMinutes(day: string, byDay: Record<string, DayBucket>) {

@@ -47,3 +47,14 @@ test("aggregateDays totals minutes without double counting chunks", () => {
   const byDay = aggregateDays(sessions);
   assert.equal(byDay["2026-04-01"].minutes, 75);
 });
+
+test("aggregateDays splits cross-midnight sessions across both days", () => {
+  const sessions = [
+    { id: "x", start: "2026-02-25T23:42:00.000Z", end: "2026-02-26T00:28:00.000Z", dateKey: "2026-02-25" }
+  ];
+  const byDay = aggregateDays(sessions);
+  assert.equal(byDay["2026-02-25"].minutes, 18);
+  assert.equal(byDay["2026-02-26"].minutes, 28);
+  assert.equal(byDay["2026-02-25"].sessionSegments[0].note, "(18m counted before midnight)");
+  assert.equal(byDay["2026-02-26"].sessionSegments[0].note, "(28m counted after midnight)");
+});
