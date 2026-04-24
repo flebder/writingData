@@ -237,7 +237,7 @@ export function buildWritingRecommendation(
   const nowYmd = todayYmdInWritingTz(now, timeZone);
   const nowMinute = getMinuteOfDayInWritingTz(now, timeZone);
   const validSessions = sessions.filter((s) => new Date(s.start) <= now);
-  const wroteToday = validSessions.some((s) => (s.dateKey || getYmdInWritingTz(new Date(s.start), timeZone)) === nowYmd);
+  const wroteToday = sessions.some((s) => (s.dateKey || getYmdInWritingTz(new Date(s.start), timeZone)) === nowYmd);
 
   const targetDate = new Date(now);
   let target: "today" | "tomorrow" = wroteToday ? "tomorrow" : "today";
