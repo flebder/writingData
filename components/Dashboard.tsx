@@ -121,7 +121,10 @@ export default function Dashboard() {
   const [payload, setPayload] = useState<ApiPayload | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("grid");
-  const [displayDate, setDisplayDate] = useState(new Date());
+  const [displayDate, setDisplayDate] = useState(() => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  });
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
   const [hourHover, setHourHover] = useState<{ hour: number; x: number; y: number } | null>(null);
@@ -169,24 +172,27 @@ export default function Dashboard() {
   const byDay = useMemo(() => aggregateDays(payload?.sessions || [], canonicalTimeZone), [payload, canonicalTimeZone]);
   const todayKey = todayYmdInWritingTz(new Date(), canonicalTimeZone);
 
+  const displayYear = displayDate.getUTCFullYear();
+  const displayMonth = displayDate.getUTCMonth();
+
   const monthDays = useMemo(() => {
-    const y = displayDate.getFullYear();
-    const m = displayDate.getMonth();
+    const y = displayYear;
+    const m = displayMonth;
     const first = new Date(Date.UTC(y, m, 1));
     const cells: Array<Date | null> = Array.from({ length: first.getUTCDay() }, () => null);
     const total = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
     for (let d = 1; d <= total; d += 1) cells.push(new Date(Date.UTC(y, m, d)));
     return cells;
-  }, [displayDate]);
+  }, [displayYear, displayMonth]);
 
   const months = useMemo(() => {
-    const y = displayDate.getFullYear();
+    const y = displayYear;
     return Array.from({ length: 12 }, (_, m) => ({
       month: m,
       name: new Date(Date.UTC(y, m, 1)).toLocaleDateString(undefined, { month: "long", timeZone: "UTC" }),
       cells: buildMonthMiniCalendar(y, m)
     }));
-  }, [displayDate]);
+  }, [displayYear]);
 
   const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), canonicalTimeZone), [payload, canonicalTimeZone]);
   const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, 30), [byDay, todayKey]);
@@ -239,13 +245,13 @@ export default function Dashboard() {
 
   const lineData = useMemo(() => {
     if (viewMode === "month") return buildMonthLineData(monthDays, byDay, dateFmt, canonicalTimeZone);
-    return buildYearLineData(displayDate.getFullYear(), byDay, canonicalTimeZone);
-  }, [viewMode, monthDays, byDay, displayDate, dateFmt, canonicalTimeZone]);
+    return buildYearLineData(displayYear, byDay, canonicalTimeZone);
+  }, [viewMode, monthDays, byDay, displayYear, dateFmt, canonicalTimeZone]);
   const [todayYear, todayMonth] = todayKey.split("-").map(Number);
-  const isViewingCurrentMonth = displayDate.getFullYear() === todayYear && displayDate.getMonth() === todayMonth - 1;
+  const isViewingCurrentMonth = displayYear === todayYear && displayMonth === todayMonth - 1;
 
-  const moveBack = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() - 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() - 1, 1));
-  const moveNext = () => viewMode === "year" ? setDisplayDate(new Date(displayDate.getFullYear() + 1, 0, 1)) : setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 1));
+  const moveBack = () => viewMode === "year" ? setDisplayDate(new Date(Date.UTC(displayYear - 1, 0, 1))) : setDisplayDate(new Date(Date.UTC(displayYear, displayMonth - 1, 1)));
+  const moveNext = () => viewMode === "year" ? setDisplayDate(new Date(Date.UTC(displayYear + 1, 0, 1))) : setDisplayDate(new Date(Date.UTC(displayYear, displayMonth + 1, 1)));
 
   const selected = selectedDay ? byDay[selectedDay] : null;
   const hovered = hover?.day ? byDay[hover.day] : null;
@@ -258,7 +264,7 @@ export default function Dashboard() {
 
       <section className="panel calendarPanel">
         <div className="toolbar">
-          <div className="navBlock"><button onClick={moveBack}>←</button><strong>{viewMode === "year" ? displayDate.getFullYear() : displayDate.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</strong><button onClick={moveNext}>→</button></div>
+          <div className="navBlock"><button onClick={moveBack}>←</button><strong>{viewMode === "year" ? displayYear : displayDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</strong><button onClick={moveNext}>→</button></div>
           <div className="modeSwitch">
             <button className="active" onClick={() => setViewMode(viewMode === "month" ? "year" : "month")}>{viewMode === "month" ? "Month View" : "Year View"}</button>
             <button className="active" onClick={() => setCalendarMode(calendarMode === "grid" ? "line" : "grid")}>{calendarMode === "grid" ? "Grid" : "Line"}</button>
@@ -277,7 +283,7 @@ export default function Dashboard() {
           </div>
         ) : calendarMode === "grid" ? (
           <div className="yearWrap">
-            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(displayDate.getFullYear(), m.month, 1)); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); return <button key={key} className={`mini ${level(min)} ${missed ? "zeroPast" : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />; })}</div></div>)}
+            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(Date.UTC(displayYear, m.month, 1))); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); return <button key={key} className={`mini ${level(min)} ${missed ? "zeroPast" : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />; })}</div></div>)}
           </div>
         ) : (
           <div className="lineWrap">
