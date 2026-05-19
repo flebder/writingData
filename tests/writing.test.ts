@@ -58,3 +58,12 @@ test("aggregateDays splits cross-midnight sessions across both days", () => {
   assert.equal(byDay["2026-02-25"].sessionSegments[0].note, "(18m counted before midnight)");
   assert.equal(byDay["2026-02-26"].sessionSegments[0].note, "(28m counted after midnight)");
 });
+
+test("aggregateDays anchors each session to canonical dateKey", () => {
+  const sessions = [
+    { id: "tz-anchor", start: "2026-05-19T00:15:00.000Z", end: "2026-05-19T01:05:00.000Z", dateKey: "2026-05-18" }
+  ];
+  const byDay = aggregateDays(sessions);
+  assert.equal(byDay["2026-05-18"].minutes, 50);
+  assert.equal(byDay["2026-05-19"], undefined);
+});

@@ -285,13 +285,16 @@ export function aggregateDays(sessions: WritingSession[], timeZone = WRITING_TZ)
 
     const segments: Array<{ date: string; minutes: number }> = [];
     let cursor = startMs;
+    let dayOffset = 0;
     while (cursor < endMs) {
       const dt = new Date(cursor);
       const nextMidnightMs = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate() + 1, 0, 0, 0);
       const chunkEnd = Math.min(endMs, nextMidnightMs);
       const minutes = Math.max(1, Math.round((chunkEnd - cursor) / MINUTE_MS));
-      segments.push({ date: ymdFromUtcParts(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate()), minutes });
+      const segmentDate = dayOffset === 0 ? session.dateKey : addDaysToYmd(session.dateKey, dayOffset);
+      segments.push({ date: segmentDate, minutes });
       cursor = chunkEnd;
+      dayOffset += 1;
     }
 
     segments.forEach((segment, idx) => {
