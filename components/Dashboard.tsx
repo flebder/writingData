@@ -278,7 +278,7 @@ export default function Dashboard() {
               const key = getYmdInWritingTz(d, canonicalTimeZone);
               const min = byDay[key]?.minutes || 0;
               const missed = isMissedDay(key, min, todayKey);
-              return <button key={key} className={`day ${level(min)} ${missed ? "zeroPast" : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getDate()}</button>;
+              return <button key={key} className={`day ${level(min)} ${missed ? "zeroPast" : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getUTCDate()}</button>;
             })}
           </div>
         ) : calendarMode === "grid" ? (
