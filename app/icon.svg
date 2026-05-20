@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Writing Journal icon">
-  <rect width="64" height="64" rx="14" fill="#f3f6f1" />
-  <path d="M17 45l3-12L40 13a4 4 0 015.66 0l5.34 5.34a4 4 0 010 5.66L31 44l-12 3z" fill="#2f7f61"/>
-  <path d="M38 15l11 11" stroke="#e7f2eb" stroke-width="3" stroke-linecap="round"/>
-  <path d="M18.5 43.5l8-2 6 6-14 3z" fill="#1f5c45"/>
+  <rect width="64" height="64" rx="14" fill="#f3f6f1"/>
+  <path d="M32 10l14 14-14 30-14-30 14-14z" fill="#2f7f61"/>
+  <path d="M32 10l8 8-8 8-8-8 8-8z" fill="#1f5c45"/>
+  <circle cx="32" cy="29" r="3.2" fill="#f3f6f1"/>
+  <path d="M28.5 44h7l-3.5 9z" fill="#1f5c45"/>
 </svg>
