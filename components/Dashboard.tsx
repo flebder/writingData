@@ -132,7 +132,7 @@ export default function Dashboard() {
   const [expanded, setExpanded] = useState<null | "trend" | "motivation" | "streak">(null);
 
   useEffect(() => {
-    fetch("/api/sessions").then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
+    fetch("/api/sessions", { cache: "no-store" }).then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
   }, []);
 
   useEffect(() => {
@@ -154,17 +154,21 @@ export default function Dashboard() {
       position: body.style.position,
       top: body.style.top,
       width: body.style.width,
-      overflowY: body.style.overflowY
+      overflowY: body.style.overflowY,
+      paddingRight: body.style.paddingRight
     };
+    const scrollbarComp = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
     body.style.position = "fixed";
     body.style.top = `-${scrollY}px`;
     body.style.width = "100%";
     body.style.overflowY = "hidden";
+    if (scrollbarComp > 0) body.style.paddingRight = `${scrollbarComp}px`;
     return () => {
       body.style.position = prev.position;
       body.style.top = prev.top;
       body.style.width = prev.width;
       body.style.overflowY = prev.overflowY;
+      body.style.paddingRight = prev.paddingRight;
       window.scrollTo(0, scrollY);
     };
   }, [expanded]);
