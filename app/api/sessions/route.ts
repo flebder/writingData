@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FALLBACK_SESSIONS, parseCsvSessions, SHEET_ID } from "@/lib/writing";
 
 export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
 
@@ -12,7 +13,7 @@ async function fetchWithTimeout(url: string, timeoutMs = 15_000) {
   try {
     const res = await fetch(url, {
       signal: controller.signal,
-      next: { revalidate: 300 },
+      cache: "no-store",
       headers: {
         Accept: "text/csv,text/plain;q=0.9,*/*;q=0.8"
       }
@@ -41,7 +42,7 @@ export async function GET() {
         source: "fallback",
         sessions: FALLBACK_SESSIONS,
         fetchedAt: new Date().toISOString()
-      });
+      }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
     }
 
     return NextResponse.json({
@@ -49,7 +50,7 @@ export async function GET() {
       source: CSV_URL,
       sessions,
       fetchedAt: new Date().toISOString()
-    });
+    }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch (error) {
     console.error("/api/sessions failed; serving fallback dataset", error);
 
@@ -61,7 +62,7 @@ export async function GET() {
         sessions: FALLBACK_SESSIONS,
         fetchedAt: new Date().toISOString()
       },
-      { status: 200 }
+      { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
     );
   }
 }
