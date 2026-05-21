@@ -2,8 +2,8 @@ import {
   addDaysToYmd,
   aggregateDays,
   getCalendarRange,
+  localTodayYmd,
   monthKeyFromYmd,
-  todayYmdInWritingTz,
   WRITING_TZ,
   type WritingSession,
   yearKeyFromYmd
@@ -41,7 +41,7 @@ function formatClock(minuteOfDay: number, timeZone: string): string {
 export function calculateDashboardStats(sessions: WritingSession[], now = new Date(), timeZone = WRITING_TZ): DashboardStats {
   const byDay = aggregateDays(sessions, timeZone);
   const dayKeys = Object.keys(byDay).sort();
-  const todayKey = todayYmdInWritingTz(now, timeZone);
+  const todayKey = localTodayYmd(now);
   const monthKey = monthKeyFromYmd(todayKey);
   const yearKey = yearKeyFromYmd(todayKey);
 

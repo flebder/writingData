@@ -95,6 +95,10 @@ export function todayYmdInWritingTz(now: Date, timeZone = WRITING_TZ): string {
   return getYmdInWritingTz(now, timeZone);
 }
 
+export function localTodayYmd(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 export function monthKeyFromYmd(ymd: string): string {
   return ymd.slice(0, 7);
 }

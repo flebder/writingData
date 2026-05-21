@@ -1,4 +1,4 @@
-import { addDaysToYmd, getHourInWritingTz, getMinuteInWritingTz, getYmdInWritingTz, todayYmdInWritingTz, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
+import { addDaysToYmd, getHourInWritingTz, getMinuteInWritingTz, getYmdInWritingTz, localTodayYmd, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 
 export type TimeBandPolicy = {
   preferred: { startMinute: number; endMinute: number; weight: number };
@@ -234,7 +234,7 @@ export function buildWritingRecommendation(
   policy: RecommendationPolicy = DEFAULT_RECOMMENDATION_POLICY,
   timeZone = WRITING_TZ
 ): WritingRecommendation {
-  const nowYmd = todayYmdInWritingTz(now, timeZone);
+  const nowYmd = localTodayYmd(now);
   const nowMinute = getMinuteOfDayInWritingTz(now, timeZone);
   const validSessions = sessions.filter((s) => new Date(s.start) <= now);
   const wroteToday = sessions.some((s) => (s.dateKey || getYmdInWritingTz(new Date(s.start), timeZone)) === nowYmd);
@@ -243,7 +243,7 @@ export function buildWritingRecommendation(
   let target: "today" | "tomorrow" = wroteToday ? "tomorrow" : "today";
   if (target === "tomorrow") targetDate.setUTCDate(targetDate.getUTCDate() + 1);
 
-  const targetYmd = todayYmdInWritingTz(targetDate, timeZone);
+  const targetYmd = localTodayYmd(targetDate);
   const weekday = targetDate.toLocaleDateString("en-US", { weekday: "long", timeZone });
 
   const weekdaySessions = validSessions.filter(

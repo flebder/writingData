@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDaysToYmd, aggregateDays, getYmdInWritingTz, rollingWeekMinutes, todayYmdInWritingTz, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
+import { addDaysToYmd, aggregateDays, getYmdInWritingTz, localTodayYmd, rollingWeekMinutes, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
 
@@ -174,7 +174,7 @@ export default function Dashboard() {
   }, [expanded]);
 
   const byDay = useMemo(() => aggregateDays(payload?.sessions || [], canonicalTimeZone), [payload, canonicalTimeZone]);
-  const todayKey = todayYmdInWritingTz(new Date(), canonicalTimeZone);
+  const todayKey = localTodayYmd(new Date());
 
   const displayYear = displayDate.getUTCFullYear();
   const displayMonth = displayDate.getUTCMonth();
