@@ -241,10 +241,10 @@ export function buildWritingRecommendation(
 
   const targetDate = new Date(now);
   let target: "today" | "tomorrow" = wroteToday ? "tomorrow" : "today";
-  if (target === "tomorrow") targetDate.setUTCDate(targetDate.getUTCDate() + 1);
+  if (target === "tomorrow") targetDate.setDate(targetDate.getDate() + 1);
 
   const targetYmd = localTodayYmd(targetDate);
-  const weekday = targetDate.toLocaleDateString("en-US", { weekday: "long", timeZone });
+  const weekday = weekdayFromYmd(targetYmd);
 
   const weekdaySessions = validSessions.filter(
     (s) => weekdayFromYmd(s.dateKey || getYmdInWritingTz(new Date(s.start), timeZone)) === weekday
