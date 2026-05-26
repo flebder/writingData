@@ -85,11 +85,11 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .hoverTip span { font-size: 12px; color: var(--muted); font-style: normal; }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 12px; }
-.streakGrid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-.streakCard { min-height: 154px; display: grid; grid-template-rows: auto 1fr auto; padding: 14px 16px; align-content: stretch; }
+.streakGrid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 11px; }
+.streakCard { min-height: 136px; display: grid; grid-template-rows: auto auto auto; padding: 12px 14px; row-gap: 5px; align-content: start; }
 .streakCard h3 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
-.streakCard p { align-self: center; margin: 10px 0 0; font-size: 26px; line-height: 1.2; }
-.streakCard small { display: block; margin-top: 8px; font-size: 12px; }
+.streakCard p { margin: 4px 0 0; font-size: 25px; line-height: 1.2; }
+.streakCard small { display: block; margin-top: 2px; font-size: 12px; }
 .secondaryStats { grid-template-columns: 1fr 1fr; }
 .stats h3 { margin: 0; color: var(--muted); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
 .stats p { margin: 8px 0 0; font-size: 21px; line-height: 1.35; }
@@ -127,12 +127,13 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 }
 
 .modal { position: fixed; inset: 0; background: rgba(30, 45, 37, 0.32); display: grid; place-items: center; padding: 14px; }
-.modalCard { width: min(520px, 92vw); max-height: 88vh; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px; }
+.modalCard { width: min(500px, 92vw); max-height: 88vh; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 12px 14px; }
 .modalCard h3 { margin-top: 0; font-family: "Iowan Old Style", serif; }
 .modalCard ul { margin: 8px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; }
 .modalCloseX { position: absolute; top: 10px; right: 12px; border: none; background: transparent; font-size: 24px; line-height: 1; padding: 0; }
 .modalCard { position: relative; }
-.detailCard p { margin: 9px 0; line-height: 1.45; }
+.detailCard p { margin: 7px 0; line-height: 1.4; }
+.trendDetailCard p + p { margin-top: 6px; }
 
 @media (max-width: 900px) {
   .yearWrap { grid-template-columns: repeat(2, minmax(0,1fr)); }

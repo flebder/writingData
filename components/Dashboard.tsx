@@ -31,6 +31,20 @@ function formatYmdLabel(ymd: string, dateFmt: Intl.DateTimeFormat, timeZone: str
   return dateFmt.format(zonedLocalToUtc(y, m, d, 12, 0, 0, timeZone));
 }
 
+function formatCompactRange(startYmd: string, endYmd: string, timeZone: string): string {
+  const [sy, sm, sd] = startYmd.split("-").map(Number);
+  const [ey, em, ed] = endYmd.split("-").map(Number);
+  const start = zonedLocalToUtc(sy, sm, sd, 12, 0, 0, timeZone);
+  const end = zonedLocalToUtc(ey, em, ed, 12, 0, 0, timeZone);
+  if (sm === em && sy === ey) {
+    const month = start.toLocaleDateString("en-US", { month: "short", timeZone });
+    return `${month} ${sd}–${ed}`;
+  }
+  const startLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone });
+  const endLabel = end.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone });
+  return `${startLabel}–${endLabel}`;
+}
+
 function ymdFromUtcDate(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
@@ -276,7 +290,8 @@ export default function Dashboard() {
   const maxLine = Math.max(1, ...lineData.map((d) => d.minutes));
   const trendMinutes = Math.abs(stats.trend.diff);
   const trendDirection = stats.trend.diff >= 0 ? "more" : "less";
-  const fmtPeriod = (day: string) => formatYmdLabel(day, new Intl.DateTimeFormat("en-US", { timeZone: canonicalTimeZone, month: "short", day: "numeric" }), canonicalTimeZone);
+  const comparedCurrent = formatCompactRange(stats.trend.currentPeriod[0], stats.trend.currentPeriod.at(-1) || stats.trend.currentPeriod[0], canonicalTimeZone);
+  const comparedPrevious = formatCompactRange(stats.trend.previousPeriod[0], stats.trend.previousPeriod.at(-1) || stats.trend.previousPeriod[0], canonicalTimeZone);
   const motivationStart = timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.suggestedStartMinutes / 60), stats.motivation.suggestedStartMinutes % 60)));
   const motivationWindow = stats.motivation.chosenCluster ? `${timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.chosenCluster.bucketStart / 60), stats.motivation.chosenCluster.bucketStart % 60)))}–${timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.chosenCluster.bucketEnd / 60), stats.motivation.chosenCluster.bucketEnd % 60)))}` : null;
 
@@ -350,7 +365,7 @@ export default function Dashboard() {
 
       {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{formatYmdLabel(selected.date, dateFmt, canonicalTimeZone)}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p><p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((s) => ({ session: s, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div>}
 
-      {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p><strong>Current pace:</strong> {stats.trend.dailyNow} minutes/day</p><p><strong>Previous pace:</strong> {stats.trend.dailyPrev} minutes/day</p><p><strong>Change:</strong> {trendMinutes} minutes {trendDirection} per day</p><p><strong>Compared:</strong> {fmtPeriod(stats.trend.currentPeriod[0])}–{fmtPeriod(stats.trend.currentPeriod.at(-1) || stats.trend.currentPeriod[0])} vs. {fmtPeriod(stats.trend.previousPeriod[0])}–{fmtPeriod(stats.trend.previousPeriod.at(-1) || stats.trend.previousPeriod[0])}</p></div></div>}
+      {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard trendDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p><strong>Current pace:</strong> {stats.trend.dailyNow} minutes/day</p><p><strong>Previous pace:</strong> {stats.trend.dailyPrev} minutes/day</p><p><strong>Change:</strong> {trendMinutes} minutes {trendDirection} per day</p><p><strong>Compared:</strong> {comparedCurrent} vs. {comparedPrevious}</p></div></div>}
 
       {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p><strong>Recommended:</strong> {stats.motivation.target === "today" ? "Today" : "Tomorrow"} at {motivationStart}</p><p><strong>Goal:</strong> {stats.motivation.suggestedDurationMinutes} minutes</p><p><strong>Why:</strong> {motivationWindow ? `Your strongest ${stats.motivation.weekday} window is ${motivationWindow}.` : stats.motivation.detail}</p><p><strong>Based on:</strong> {stats.motivation.chosenCluster?.sessionCount ?? 0} sessions averaging {fmtMinutes(stats.motivation.chosenCluster?.averageDurationMinutes ?? stats.motivation.suggestedDurationMinutes)}.</p></div></div>}
       {expanded === "streak" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Streak details</h3><section className="stats streakGrid"><article className="panel streakCard"><h3>Current streak</h3><p>{streaks.current?.days ?? 0} days</p><small>{fmtDateRange(streaks.current)}</small></article><article className="panel streakCard"><h3>Current score</h3><p>{fmtMinutes(streaks.current?.scoreMinutes ?? 0)}</p><small>Daily avg. {fmtMinutes(streaks.current ? Math.round(streaks.current.scoreMinutes / Math.max(1, streaks.current.days)) : 0)}</small></article><article className="panel streakCard"><h3>Longest streak (year)</h3><p>{streaks.longestYear?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestYear)}</small></article><article className="panel streakCard"><h3>Best score (year)</h3><p>{fmtMinutes(streaks.bestScoreYear?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreYear)}</small></article><article className="panel streakCard"><h3>Longest streak (all time)</h3><p>{streaks.longestAllTime?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestAllTime)}</small></article><article className="panel streakCard"><h3>Best score (all time)</h3><p>{fmtMinutes(streaks.bestScoreAllTime?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreAllTime)}</small></article></section></div></div>}
