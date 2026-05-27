@@ -71,6 +71,18 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .day.goal, .mini.goal { background: var(--goal); color: #fff; }
 .day.super, .mini.super { background: var(--super); color: #fff; }
 .day.empty { opacity: 0; pointer-events: none; }
+.day.none:hover, .mini.none:hover { background: color-mix(in srgb, var(--none) 82%, #000 18%); }
+.day.zeroPast:hover, .mini.zeroPast:hover { background: color-mix(in srgb, var(--zero) 82%, #000 18%); }
+.day.below:hover, .mini.below:hover { background: color-mix(in srgb, var(--below) 82%, #000 18%); }
+.day.baseline:hover, .mini.baseline:hover { background: color-mix(in srgb, var(--baseline) 82%, #000 18%); }
+.day.goal:hover, .mini.goal:hover { background: color-mix(in srgb, var(--goal) 82%, #000 18%); }
+.day.super:hover, .mini.super:hover { background: color-mix(in srgb, var(--super) 82%, #000 18%); }
+[data-theme="dark"] .day.none:hover, [data-theme="dark"] .mini.none:hover { background: color-mix(in srgb, var(--none) 72%, #000 28%); }
+[data-theme="dark"] .day.zeroPast:hover, [data-theme="dark"] .mini.zeroPast:hover { background: color-mix(in srgb, var(--zero) 74%, #000 26%); }
+[data-theme="dark"] .day.below:hover, [data-theme="dark"] .mini.below:hover { background: color-mix(in srgb, var(--below) 74%, #000 26%); }
+[data-theme="dark"] .day.baseline:hover, [data-theme="dark"] .mini.baseline:hover { background: color-mix(in srgb, var(--baseline) 74%, #000 26%); }
+[data-theme="dark"] .day.goal:hover, [data-theme="dark"] .mini.goal:hover { background: color-mix(in srgb, var(--goal) 74%, #000 26%); }
+[data-theme="dark"] .day.super:hover, [data-theme="dark"] .mini.super:hover { background: color-mix(in srgb, var(--super) 74%, #000 26%); }
 
 .yearWrap { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
 .monthBlock { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fbfefc; }
@@ -127,6 +139,8 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .hourHist { height: 160px; border: 1px solid var(--line); border-radius: 10px; background: #fbfffc; display: grid; grid-template-columns: repeat(24,1fr); align-items: end; gap: 4px; padding: 10px 6px; }
 .hourCol { height: 100%; display: flex; align-items: flex-end; }
 .hourBar { width: 100%; background: linear-gradient(180deg, #8ec6a6, #2f7f61); border-radius: 4px 4px 2px 2px; min-height: 6px; }
+.hourCol.isHovered .hourBar { filter: saturate(1.15) brightness(1.08); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent); }
+.hourCol.isDimmed .hourBar { opacity: 0.72; }
 .hourTicks { display: grid; grid-template-columns: repeat(24,1fr); font-size: 10px; color: var(--muted); margin-top: 4px; }
 .hourTicks span { text-align: center; }
 .hourTicks .major { color: #355f49; font-weight: 600; }

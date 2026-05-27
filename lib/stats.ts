@@ -65,8 +65,9 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
   const daysInYear = dayKeys.filter((d) => d.startsWith(yearKey)).length;
   const dailyAverage = daysInYear ? Math.round(yearlyTotal / daysInYear) : 0;
 
-  const currentPeriod = getCalendarRange(todayKey, 7);
-  const previousPeriod = getCalendarRange(addDaysToYmd(todayKey, -7), 7);
+  const trendEndDay = addDaysToYmd(todayKey, -1);
+  const currentPeriod = getCalendarRange(trendEndDay, 7);
+  const previousPeriod = getCalendarRange(addDaysToYmd(trendEndDay, -7), 7);
   const weekNow = currentPeriod.reduce((sum, day) => sum + (byDay[day]?.minutes || 0), 0);
   const weekPrev = previousPeriod.reduce((sum, day) => sum + (byDay[day]?.minutes || 0), 0);
   const dailyNow = Math.round(weekNow / 7);
