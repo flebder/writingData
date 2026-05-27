@@ -320,6 +320,10 @@ export function aggregateDays(sessions: WritingSession[], timeZone = WRITING_TZ)
   return byDay;
 }
 
+function ymdFromUtcParts(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function rollingWeekMinutes(day: string, byDay: Record<string, DayBucket>) {
   let total = 0;
   for (let i = 0; i < 7; i += 1) {
