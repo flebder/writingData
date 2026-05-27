@@ -145,9 +145,14 @@ export default function Dashboard() {
   const [lineHover, setLineHover] = useState<{ item: LinePoint; x: number; y: number } | null>(null);
   const [expanded, setExpanded] = useState<null | "trend" | "motivation" | "streak">(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [todayKey, setTodayKey] = useState(() => localTodayYmd(new Date()));
 
   useEffect(() => {
     fetch("/api/sessions", { cache: "no-store" }).then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
+  }, []);
+
+  useEffect(() => {
+    setTodayKey(localTodayYmd(new Date()));
   }, []);
 
   useEffect(() => {
@@ -201,7 +206,6 @@ export default function Dashboard() {
   }, [expanded]);
 
   const byDay = useMemo(() => aggregateDays(payload?.sessions || [], canonicalTimeZone), [payload, canonicalTimeZone]);
-  const todayKey = localTodayYmd(new Date());
 
   const displayYear = displayDate.getUTCFullYear();
   const displayMonth = displayDate.getUTCMonth();
@@ -355,7 +359,7 @@ export default function Dashboard() {
       <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>You’re writing <strong>{trendMinutes} minutes {trendDirection}</strong> per day compared to the prior week{stats.trend.dailyPrev ? ` (${Math.abs(stats.trend.pct)}% ${trendDirection})` : ""}.</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>Write <strong>{stats.motivation.target === "today" ? "today" : "tomorrow"}</strong> at <strong>{motivationStart}</strong> for <strong>{stats.motivation.suggestedDurationMinutes} minutes</strong>.<br />{stats.motivation.encouragement}</p></article></section>
 
       <section className="panel chartPanel">
-        <h3>Average writing time by weekday</h3>
+        <h3>Typical writing time by weekday</h3>
         <div className="hBars">{weekdayBars.map((d) => { const max = Math.max(1, ...weekdayBars.map((x) => x.avg)); return <div key={d.name} className="hBarRow"><span>{d.name}</span><div className="hBarTrack"><div className="hBarFill" style={{ width: `${(d.avg / max) * 100}%` }} /></div><strong>{fmtMinutes(d.avg)}</strong></div>; })}</div>
         <h3>Writing activity across the day</h3>
         <div className="hourHist">{hourly.map((h) => <div key={h.hour} className="hourCol" onMouseEnter={(e) => setHourHover({ hour: h.hour, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHourHover({ hour: h.hour, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHourHover(null)}><div className="hourBar" style={{ height: `${Math.max(8, (h.daysCount / maxHour) * 100)}%` }} /></div>)}</div>

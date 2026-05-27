@@ -122,6 +122,8 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .hBarRow { display: grid; grid-template-columns: 44px 1fr 76px; align-items: center; gap: 10px; }
 .hBarTrack { background: #e5eee8; border-radius: 10px; height: 12px; overflow: hidden; }
 .hBarFill { background: linear-gradient(90deg, #79be98, #2f7f61); height: 100%; }
+[data-theme="dark"] .hBarTrack { background: #2a3731; }
+[data-theme="dark"] .hBarFill { background: linear-gradient(90deg, #6ea786, #4f815f); }
 .hourHist { height: 160px; border: 1px solid var(--line); border-radius: 10px; background: #fbfffc; display: grid; grid-template-columns: repeat(24,1fr); align-items: end; gap: 4px; padding: 10px 6px; }
 .hourCol { height: 100%; display: flex; align-items: flex-end; }
 .hourBar { width: 100%; background: linear-gradient(180deg, #8ec6a6, #2f7f61); border-radius: 4px 4px 2px 2px; min-height: 6px; }
