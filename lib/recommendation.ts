@@ -1,4 +1,4 @@
-import { addDaysToYmd, getHourInWritingTz, getMinuteInWritingTz, getYmdInWritingTz, localTodayYmd, WRITING_TZ, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
+import { addDaysToYmd, getHourInWritingTz, getMinuteInWritingTz, getYmdInWritingTz, localTodayYmd, WRITING_TZ, type WritingSession } from "@/lib/writing";
 
 export type TimeBandPolicy = {
   preferred: { startMinute: number; endMinute: number; weight: number };
@@ -213,14 +213,14 @@ function buildDurationRecommendation(chosen: ClusterStats | null, sessions: Writ
   return clamp(adjusted, policy.minimumRecommendationMinutes, policy.softMaxRecommendationMinutes);
 }
 
-function isClusterStillValidToday(cluster: ClusterStats, targetYmd: string, now: Date, policy: RecommendationPolicy, timeZone: string): boolean {
-  const [y, m, d] = targetYmd.split("-").map(Number);
-  const scheduledUtc = zonedLocalToUtc(y, m, d, Math.floor(cluster.representativeMinute / 60), cluster.representativeMinute % 60, 0, timeZone).getTime();
-  return scheduledUtc >= now.getTime() + policy.futureBufferMinutes * 60_000;
+function isClusterStillValidToday(cluster: ClusterStats, targetYmd: string, now: Date, policy: RecommendationPolicy): boolean {
+  if (targetYmd !== localTodayYmd(now)) return true;
+  const nowMinuteLocal = now.getHours() * 60 + now.getMinutes();
+  return cluster.representativeMinute >= nowMinuteLocal + policy.futureBufferMinutes;
 }
 
-function pickBestValidClusterForToday(candidates: ClusterStats[], targetYmd: string, now: Date, policy: RecommendationPolicy, timeZone: string): ClusterStats | null {
-  return candidates.find((cluster) => isClusterStillValidToday(cluster, targetYmd, now, policy, timeZone)) || null;
+function pickBestValidClusterForToday(candidates: ClusterStats[], targetYmd: string, now: Date, policy: RecommendationPolicy): ClusterStats | null {
+  return candidates.find((cluster) => isClusterStillValidToday(cluster, targetYmd, now, policy)) || null;
 }
 
 function supportingSentence(weekday: string, chosen: ClusterStats | null, timeZone: string): string {
@@ -263,8 +263,8 @@ export function buildWritingRecommendation(
   }
 
   if (target === "today") {
-    const weekdayValid = pickBestValidClusterForToday(weekdayClusters, targetYmd, now, policy, timeZone);
-    const generalValid = pickBestValidClusterForToday(generalClusters, targetYmd, now, policy, timeZone);
+    const weekdayValid = pickBestValidClusterForToday(weekdayClusters, targetYmd, now, policy);
+    const generalValid = pickBestValidClusterForToday(generalClusters, targetYmd, now, policy);
     if (weekdayValid) {
       chosen = weekdayValid;
       alternative = weekdayClusters.find((c) => c.bucketStart !== weekdayValid.bucketStart && c.sessionCount >= 3) || null;
