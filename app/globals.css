@@ -140,7 +140,6 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .hourCol { height: 100%; display: flex; align-items: flex-end; }
 .hourBar { width: 100%; background: linear-gradient(180deg, #8ec6a6, #2f7f61); border-radius: 4px 4px 2px 2px; min-height: 6px; }
 .hourCol.isHovered .hourBar { filter: saturate(1.15) brightness(1.08); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent); }
-.hourCol.isDimmed .hourBar { opacity: 0.72; }
 .hourTicks { display: grid; grid-template-columns: repeat(24,1fr); font-size: 10px; color: var(--muted); margin-top: 4px; }
 .hourTicks span { text-align: center; }
 .hourTicks .major { color: #355f49; font-weight: 600; }
