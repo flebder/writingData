@@ -71,8 +71,8 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .day.goal, .mini.goal { background: var(--goal); color: #fff; }
 .day.super, .mini.super { background: var(--super); color: #fff; }
 .day.empty { opacity: 0; pointer-events: none; }
-.day.today, .mini.today { box-shadow: inset 0 0 0 2px #c18a2a, 0 0 0 1px rgba(237, 192, 96, 0.55); }
-[data-theme="dark"] .day.today, [data-theme="dark"] .mini.today { box-shadow: inset 0 0 0 2px #e0b45a, 0 0 0 1px rgba(224, 180, 90, 0.45), 0 0 8px rgba(167, 121, 37, 0.35); }
+.day.today, .mini.today { box-shadow: inset 0 0 0 2px #c8942f; }
+[data-theme="dark"] .day.today, [data-theme="dark"] .mini.today { box-shadow: inset 0 0 0 2px #e1b45b; }
 .day.none:hover, .mini.none:hover { background: color-mix(in srgb, var(--none) 82%, #000 18%); }
 .day.zeroPast:hover, .mini.zeroPast:hover { background: color-mix(in srgb, var(--zero) 82%, #000 18%); }
 .day.below:hover, .mini.below:hover { background: color-mix(in srgb, var(--below) 82%, #000 18%); }
