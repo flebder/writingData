@@ -146,6 +146,7 @@ export default function Dashboard() {
   const [lineHover, setLineHover] = useState<{ item: LinePoint; x: number; y: number } | null>(null);
   const [expanded, setExpanded] = useState<null | "trend" | "motivation" | "streak">(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [themeReady, setThemeReady] = useState(false);
   const [todayKey, setTodayKey] = useState(() => localTodayYmd(new Date()));
 
   useEffect(() => {
@@ -172,12 +173,14 @@ export default function Dashboard() {
     const initial = saved === "dark" || saved === "light" ? saved : "light";
     setTheme(initial);
     document.documentElement.dataset.theme = initial;
+    setThemeReady(true);
   }, []);
 
   useEffect(() => {
+    if (!themeReady) return;
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("wj-theme", theme);
-  }, [theme]);
+  }, [theme, themeReady]);
 
   useEffect(() => {
     if (expanded !== "streak") return;
@@ -302,8 +305,12 @@ export default function Dashboard() {
 
   return (
     <main className="journalShell">
-      <header className="hero"><h1>Writing Journal</h1><div className="heroActions"><button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "🌙" : "☀️"}</button><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong className="streakCount">{streaks.current?.days ?? 0}</strong></button></div></header>
+      <header className="hero"><h1>Writing Journal</h1><div className="heroActions"><button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong className="streakCount">{payload === null ? "…" : (streaks.current?.days ?? 0)}</strong></button></div></header>
 
+      {payload === null ? (
+        <section className="panel loadingPanel"><h3>Loading your journal…</h3><p>Fetching the latest writing sessions from Google Sheets.</p></section>
+      ) : (
+        <>
       <section className="panel calendarPanel">
         <div className="toolbar">
           <div className="navBlock"><button onClick={moveBack}>←</button><strong>{viewMode === "year" ? displayYear : displayDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</strong><button onClick={moveNext}>→</button></div>
@@ -374,6 +381,8 @@ export default function Dashboard() {
 
       {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p><strong>Recommended:</strong> {stats.motivation.target === "today" ? "Today" : "Tomorrow"} at {motivationStart}</p><p><strong>Goal:</strong> {stats.motivation.suggestedDurationMinutes} minutes</p><p><strong>Why:</strong> {motivationWindow ? `Your strongest ${stats.motivation.weekday} window is ${motivationWindow}.` : stats.motivation.detail}</p><p><strong>Based on:</strong> {stats.motivation.chosenCluster?.sessionCount ?? 0} sessions averaging {fmtMinutes(stats.motivation.chosenCluster?.averageDurationMinutes ?? stats.motivation.suggestedDurationMinutes)}.</p></div></div>}
       {expanded === "streak" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Streak details</h3><section className="stats streakGrid"><article className="panel streakCard"><h3>Current streak</h3><p>{streaks.current?.days ?? 0} days</p><small>{fmtDateRange(streaks.current)}</small></article><article className="panel streakCard"><h3>Current score</h3><p>{fmtMinutes(streaks.current?.scoreMinutes ?? 0)}</p><small>Daily avg. {fmtMinutes(streaks.current ? Math.round(streaks.current.scoreMinutes / Math.max(1, streaks.current.days)) : 0)}</small></article><article className="panel streakCard"><h3>Longest streak (year)</h3><p>{streaks.longestYear?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestYear)}</small></article><article className="panel streakCard"><h3>Best score (year)</h3><p>{fmtMinutes(streaks.bestScoreYear?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreYear)}</small></article><article className="panel streakCard"><h3>Longest streak (all time)</h3><p>{streaks.longestAllTime?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestAllTime)}</small></article><article className="panel streakCard"><h3>Best score (all time)</h3><p>{fmtMinutes(streaks.bestScoreAllTime?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreAllTime)}</small></article></section></div></div>}
+        </>
+      )}
     </main>
   );
 }

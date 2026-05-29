@@ -44,7 +44,7 @@ body { margin: 0; font-family: Inter, system-ui, sans-serif; color: var(--ink); 
 .journalShell { max-width: 1160px; margin: 0 auto; padding: 28px; }
 .hero { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .heroActions { display: inline-flex; align-items: center; gap: 8px; }
-.themeToggle { min-height: 38px; border-radius: 999px; padding: 7px 11px; }
+.themeToggle { width: 38px; min-height: 38px; border-radius: 999px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 1; font-size: 18px; }
 .hero h1 { font-family: "Iowan Old Style", "Times New Roman", serif; margin: 0; font-size: 42px; }
 .hero p { color: var(--muted); margin: 8px 0 0; }
 .streakBadge { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-height: 38px; padding: 7px 12px; border-radius: 999px; }
@@ -53,6 +53,9 @@ body { margin: 0; font-family: Inter, system-ui, sans-serif; color: var(--ink); 
 .streakCount { min-width: 20px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
 .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 14px; }
+.loadingPanel { min-height: 220px; display: grid; place-content: center; text-align: center; gap: 6px; }
+.loadingPanel h3, .loadingPanel p { margin: 0; }
+.loadingPanel p { color: var(--muted); }
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
 .navBlock { display: flex; align-items: center; gap: 10px; }
 .modeSwitch { display: flex; gap: 8px; }
@@ -168,6 +171,7 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 [data-theme="dark"] .hourTooltip span { color: #c2cbba; }
 
 .modal { position: fixed; inset: 0; background: rgba(30, 45, 37, 0.32); display: grid; place-items: center; padding: 14px; }
+[data-theme="dark"] .modal { background: rgba(5, 11, 8, 0.72); }
 .modalCard { width: min(500px, 92vw); max-height: 88vh; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 12px 14px; }
 .modalCard h3 { margin-top: 0; font-family: "Iowan Old Style", serif; }
 .modalCard ul { margin: 8px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; }
