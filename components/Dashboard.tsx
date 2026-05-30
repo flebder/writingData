@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { addDaysToYmd, aggregateDays, getYmdInWritingTz, localTodayYmd, rollingWeekMinutes, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
+import type { ProjectDeadline, ProjectState } from "@/lib/projects";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
+type ProjectsPayload = { ok: boolean; configured: boolean; state: ProjectState; warning?: string };
 type ViewMode = "month" | "year";
 type CalendarMode = "grid" | "line";
 
@@ -44,6 +46,23 @@ function formatCompactRange(startYmd: string, endYmd: string, timeZone: string):
   const startLabel = start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone });
   const endLabel = end.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone });
   return `${startLabel}–${endLabel}`;
+}
+
+
+function formatProjectDate(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+}
+
+function projectDueText(deadline: ProjectDeadline): string {
+  if (deadline.daysUntil < 0) return `${Math.abs(deadline.daysUntil)} ${Math.abs(deadline.daysUntil) === 1 ? "day" : "days"} ago`;
+  if (deadline.daysUntil === 0) return "due today";
+  return `${deadline.daysUntil} ${deadline.daysUntil === 1 ? "day" : "days"} left`;
+}
+
+function projectBarLabel(deadline: ProjectDeadline | null): string {
+  if (!deadline) return "No active project deadline";
+  return `${deadline.milestone.milestone_name} · ${formatProjectDate(deadline.milestone.deadline_date)} · ${projectDueText(deadline)}`;
 }
 
 function ymdFromUtcDate(date: Date): string {
@@ -134,6 +153,7 @@ export default function Dashboard() {
     [canonicalTimeZone]
   );
   const [payload, setPayload] = useState<ApiPayload | null>(null);
+  const [projectsPayload, setProjectsPayload] = useState<ProjectsPayload | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("grid");
   const [displayDate, setDisplayDate] = useState(() => {
@@ -151,6 +171,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetch("/api/sessions", { cache: "no-store" }).then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
+    fetch("/api/projects", { cache: "no-store" }).then((r) => r.json()).then(setProjectsPayload).catch(() => setProjectsPayload(null));
   }, []);
 
   useEffect(() => {
@@ -235,6 +256,17 @@ export default function Dashboard() {
 
   const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), canonicalTimeZone), [payload, canonicalTimeZone]);
   const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, 30), [byDay, todayKey]);
+  const projectDeadlines = projectsPayload?.state?.activeDeadlines || [];
+  const projectDeadlinesByDay = useMemo(() => {
+    const grouped: Record<string, ProjectDeadline[]> = {};
+    for (const deadline of projectDeadlines) {
+      const key = deadline.milestone.deadline_date;
+      grouped[key] = [...(grouped[key] || []), deadline];
+    }
+    return grouped;
+  }, [projectDeadlines]);
+  const projectBarDeadline = projectsPayload?.state?.nextDeadline || null;
+  const projectBarClass = projectBarDeadline?.urgency || (projectsPayload === null ? "loading" : "empty");
 
   const weekdayBars = useMemo(() => {
     const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -305,7 +337,7 @@ export default function Dashboard() {
 
   return (
     <main className="journalShell">
-      <header className="hero"><h1>Writing Journal</h1><div className="heroActions"><button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong className="streakCount">{payload === null ? "…" : (streaks.current?.days ?? 0)}</strong></button></div></header>
+      <header className="hero"><h1>Writing Journal</h1><a className={`projectBar ${projectBarClass}`} href="/projects">{projectsPayload === null ? "Loading project deadline…" : projectBarLabel(projectBarDeadline)}</a><div className="heroActions"><button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong className="streakCount">{payload === null ? "…" : (streaks.current?.days ?? 0)}</strong></button></div></header>
 
       {payload === null ? (
         <div className="dashboardSkeleton" aria-live="polite" aria-busy="true">
@@ -338,12 +370,14 @@ export default function Dashboard() {
               const key = getYmdInWritingTz(d, canonicalTimeZone);
               const min = byDay[key]?.minutes || 0;
               const missed = isMissedDay(key, min, todayKey);
-              return <button key={key} className={`day ${level(min)} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getUTCDate()}</button>;
+              const due = projectDeadlinesByDay[key] || [];
+              const dueUrgency = due.some((item) => item.urgency === "overdue") ? "overdue" : due.some((item) => item.urgency === "today") ? "today" : due.length ? "future" : "";
+              return <button key={key} className={`day ${level(min)} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getUTCDate()}{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>;
             })}
           </div>
         ) : calendarMode === "grid" ? (
           <div className="yearWrap">
-            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(Date.UTC(displayYear, m.month, 1))); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); return <button key={key} className={`mini ${level(min)} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} />; })}</div></div>)}
+            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(Date.UTC(displayYear, m.month, 1))); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); const due = projectDeadlinesByDay[key] || []; const dueUrgency = due.some((item) => item.urgency === "overdue") ? "overdue" : due.some((item) => item.urgency === "today") ? "today" : due.length ? "future" : ""; return <button key={key} className={`mini ${level(min)} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)}>{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>; })}</div></div>)}
           </div>
         ) : (
           <div className="lineWrap">
@@ -386,7 +420,7 @@ export default function Dashboard() {
         {hourHover && <div className="hourTooltip" style={{ left: hourHover.x + 12, top: hourHover.y + 12 }}><strong>{String(hourHover.hour).padStart(2, "0")}:00</strong><span>Written on {hourly[hourHover.hour].daysCount} days</span><span>Average: {hourly[hourHover.hour].avgMinutes} minutes</span></div>}
       </section>
 
-      {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{formatYmdLabel(selected.date, dateFmt, canonicalTimeZone)}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p><p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((s) => ({ session: s, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div>}
+      {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{formatYmdLabel(selected.date, dateFmt, canonicalTimeZone)}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p><p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p>{(projectDeadlinesByDay[selected.date] || []).length ? <div className="dayDeadlineList"><strong>Project deadlines</strong><ul>{projectDeadlinesByDay[selected.date].map((deadline) => <li key={deadline.milestone.milestone_id}>Due: {deadline.milestone.milestone_name} — {deadline.project.project_name}</li>)}</ul></div> : null}<button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((s) => ({ session: s, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div>}
 
       {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard trendDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p><strong>Current pace:</strong> {stats.trend.dailyNow} {minuteWord(stats.trend.dailyNow)}/day</p><p><strong>Previous pace:</strong> {stats.trend.dailyPrev} {minuteWord(stats.trend.dailyPrev)}/day</p><p><strong>Change:</strong> {trendMinutes} {minuteWord(trendMinutes)} {trendDirection} per day</p><p><strong>Compared:</strong> {comparedCurrent} vs. {comparedPrevious}</p></div></div>}
 

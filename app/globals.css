@@ -204,3 +204,106 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   .secondaryStats { grid-template-columns: 1fr; }
   .statInline { white-space: normal; flex-wrap: wrap; gap: 6px; }
 }
+
+.projectBar {
+  justify-self: center;
+  align-self: center;
+  max-width: min(520px, 100%);
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 78%, var(--accent-soft) 22%);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.08);
+}
+.projectBar.soon { border-color: #d5b66c; background: color-mix(in srgb, var(--paper) 68%, #f2d486 32%); }
+.projectBar.today { border-color: #c8942f; background: color-mix(in srgb, var(--paper) 58%, #e3b85a 42%); }
+.projectBar.overdue { border-color: #c98282; background: color-mix(in srgb, var(--paper) 62%, #d98c8c 38%); }
+.projectBar.empty, .projectBar.loading { color: var(--muted); }
+.day, .mini { position: relative; }
+.day.hasDue .dueMarker, .mini.hasDue .dueMarker {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6d8f72;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--paper) 85%, transparent);
+  color: #fff;
+  font-size: 8px;
+  line-height: 10px;
+  text-align: center;
+}
+.day.due-today .dueMarker, .mini.due-today .dueMarker { background: #c8942f; width: 10px; height: 10px; }
+.day.due-overdue .dueMarker, .mini.due-overdue .dueMarker { background: #b85f61; width: 10px; height: 10px; }
+.mini.hasDue .dueMarker { right: -2px; bottom: -2px; width: 5px; height: 5px; font-size: 0; line-height: 0; }
+.mini.due-today .dueMarker, .mini.due-overdue .dueMarker { width: 6px; height: 6px; }
+.dayDeadlineList { margin: 10px 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.dayDeadlineList ul { max-height: none; margin-top: 5px; }
+.projectsShell { display: grid; gap: 14px; }
+.projectsHeader { display: grid; gap: 10px; }
+.projectsHeader h1 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 42px; }
+.projectsIntro { margin: 4px 0 0; color: var(--muted); max-width: 640px; }
+.backLink { color: var(--accent); text-decoration: none; font-weight: 700; }
+.eyebrow { margin: 0 0 5px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.projectNotice { color: var(--muted); }
+.projectFormPanel h2, .projectsList h2 { margin: 0 0 10px; font-family: "Iowan Old Style", "Times New Roman", serif; }
+.projectForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.projectForm label, .projectCard label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.projectForm input, .projectForm select, .projectForm textarea, .projectCard input, .projectCard textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 9px 10px;
+  font: inherit;
+}
+.projectForm textarea, .projectCard textarea { min-height: 74px; resize: vertical; }
+.projectForm .wide { grid-column: 1 / -1; }
+.projectsList { display: grid; gap: 10px; }
+.projectCard { display: grid; gap: 9px; }
+.projectCardTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.projectCardTop h3 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 23px; }
+.projectCardTop strong { white-space: nowrap; color: var(--accent); }
+.projectCard.soon { border-color: #d5b66c; }
+.projectCard.today { border-color: #c8942f; box-shadow: 0 10px 24px rgba(200, 148, 47, 0.14); }
+.projectCard.overdue { border-color: #c98282; }
+.projectMeta { color: var(--muted); }
+.projectTitleInput { font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 22px; }
+.projectActions, .rolloverBox { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rolloverBox { padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.rolloverBox p { width: 100%; margin: 0; font-weight: 700; }
+.completedProjects { margin-top: 8px; }
+.projectCard.completed { opacity: 0.82; }
+.emptyProject { color: var(--muted); }
+[data-theme="dark"] .projectBar { background: color-mix(in srgb, var(--paper) 78%, var(--accent-soft) 22%); box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22); }
+[data-theme="dark"] .projectBar.soon { background: color-mix(in srgb, var(--paper) 72%, #7c6126 28%); }
+[data-theme="dark"] .projectBar.today { background: color-mix(in srgb, var(--paper) 65%, #9a742c 35%); }
+[data-theme="dark"] .projectBar.overdue { background: color-mix(in srgb, var(--paper) 68%, #7f3d42 32%); }
+[data-theme="dark"] .day.hasDue .dueMarker, [data-theme="dark"] .mini.hasDue .dueMarker { box-shadow: 0 0 0 1px rgba(12, 18, 15, 0.9); }
+[data-theme="dark"] .projectForm input, [data-theme="dark"] .projectForm select, [data-theme="dark"] .projectForm textarea, [data-theme="dark"] .projectCard input, [data-theme="dark"] .projectCard textarea { background: #223029; }
+
+@media (min-width: 720px) {
+  .hero { display: grid; grid-template-columns: auto minmax(160px, 1fr) auto; column-gap: 14px; }
+}
+
+@media (max-width: 720px) {
+  .hero { flex-wrap: wrap; gap: 10px; }
+  .projectBar { order: 3; width: 100%; max-width: none; text-align: center; }
+  .projectForm { grid-template-columns: 1fr; }
+  .projectCardTop { flex-direction: column; }
+}
+
+.streakBadge { gap: 6px; padding: 7px 12px; }
+.flame { width: 18px; transform: translateY(-0.5px); }
+.streakCount { min-width: 14px; line-height: 1; font-variant-numeric: tabular-nums; transform: translateY(0.5px); }
+.projectsHeaderRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+@media (max-width: 720px) { .projectsHeaderRow { align-items: center; } }
