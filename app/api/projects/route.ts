@@ -8,6 +8,9 @@ type ProjectApiBody = {
 };
 
 const HEADERS = { "Cache-Control": "no-store, no-cache, must-revalidate" };
+const READ_ERROR_MESSAGE = "Project deadlines could not be loaded right now. Your writing dashboard is still available.";
+const WRITE_ERROR_MESSAGE = "Project changes could not be saved right now. Please try again in a moment.";
+const NOT_CONFIGURED_MESSAGE = "Project deadlines are not connected yet.";
 
 function json(data: unknown, init: ResponseInit = {}) {
   return NextResponse.json(data, { ...init, headers: { ...HEADERS, ...(init.headers || {}) } });
@@ -87,7 +90,7 @@ function normalizeEvents(value: unknown): ProjectEvent[] {
 
 async function fetchEvents(): Promise<{ configured: boolean; events: ProjectEvent[]; warning?: string }> {
   const readUrl = process.env.PROJECTS_EVENTS_CSV_URL || process.env.PROJECTS_EVENTS_READ_URL;
-  if (!readUrl) return { configured: false, events: [], warning: "Project event sheet is not configured." };
+  if (!readUrl) return { configured: false, events: [], warning: NOT_CONFIGURED_MESSAGE };
 
   const response = await fetch(readUrl, { cache: "no-store" });
   if (!response.ok) throw new Error(`Project event fetch failed: ${response.status}`);
@@ -96,7 +99,9 @@ async function fetchEvents(): Promise<{ configured: boolean; events: ProjectEven
   if (!trimmed) return { configured: true, events: [] };
 
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    return { configured: true, events: normalizeEvents(JSON.parse(trimmed)) };
+    const parsed = JSON.parse(trimmed) as { ok?: boolean; events?: unknown[] } | unknown[];
+    if (!Array.isArray(parsed) && parsed && typeof parsed === "object" && (parsed as { ok?: boolean }).ok === false) throw new Error("Project read endpoint returned an error");
+    return { configured: true, events: normalizeEvents(parsed) };
   }
 
   return { configured: true, events: parseEventsCsv(trimmed) };
@@ -107,27 +112,50 @@ export async function GET() {
     const { configured, events, warning } = await fetchEvents();
     return json({ ok: true, configured, events, state: reduceProjectEvents(events), warning });
   } catch (error) {
-    return json({ ok: false, configured: true, events: [], state: reduceProjectEvents([]), warning: error instanceof Error ? error.message : "Project deadlines could not be loaded." }, { status: 200 });
+    console.error("Project event read failed", error);
+    return json({ ok: false, configured: true, events: [], state: reduceProjectEvents([]), warning: READ_ERROR_MESSAGE }, { status: 200 });
   }
 }
 
 export async function POST(request: Request) {
   const writeUrl = process.env.PROJECTS_EVENTS_WEBHOOK_URL;
   if (!writeUrl) {
-    return json({ ok: false, warning: "PROJECTS_EVENTS_WEBHOOK_URL is not configured, so project changes cannot be saved yet." }, { status: 501 });
+    return json({ ok: false, warning: NOT_CONFIGURED_MESSAGE }, { status: 501 });
   }
 
-  const body = (await request.json()) as ProjectApiBody;
+  let body: ProjectApiBody;
+  try {
+    body = (await request.json()) as ProjectApiBody;
+  } catch {
+    return json({ ok: false, warning: WRITE_ERROR_MESSAGE }, { status: 400 });
+  }
   const events = normalizeEvents(body.events || []);
-  if (!events.length) return json({ ok: false, warning: "No project events were provided." }, { status: 400 });
+  if (!events.length) return json({ ok: false, warning: "Add at least one project change before saving." }, { status: 400 });
 
-  const response = await fetch(writeUrl, {
-    method: "POST",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: process.env.PROJECTS_EVENTS_TOKEN || "", events })
-  });
+  try {
+    const response = await fetch(writeUrl, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: process.env.PROJECTS_EVENTS_TOKEN || "", events })
+    });
 
-  if (!response.ok) return json({ ok: false, warning: `Project event write failed: ${response.status}` }, { status: 502 });
-  return json({ ok: true, events });
+    if (!response.ok) {
+      console.error("Project event write failed", response.status);
+      return json({ ok: false, warning: WRITE_ERROR_MESSAGE }, { status: 502 });
+    }
+
+    const text = await response.text();
+    if (text.trim().startsWith("{")) {
+      const result = JSON.parse(text) as { ok?: boolean; warning?: string; error?: string };
+      if (result.ok === false) {
+        console.error("Project event write rejected", result.error || result.warning);
+        return json({ ok: false, warning: WRITE_ERROR_MESSAGE }, { status: 502 });
+      }
+    }
+    return json({ ok: true, events });
+  } catch (error) {
+    console.error("Project event write failed", error);
+    return json({ ok: false, warning: WRITE_ERROR_MESSAGE }, { status: 502 });
+  }
 }

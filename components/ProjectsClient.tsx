@@ -21,6 +21,10 @@ type ManualAdjustState = {
   dates: Record<string, string>;
 };
 
+const PROJECT_READ_ERROR = "Project deadlines could not be loaded right now. Your writing dashboard is still available.";
+const PROJECT_WRITE_ERROR = "Project changes could not be saved right now. Please try again in a moment.";
+const PROJECT_NOT_CONNECTED = "Project deadlines are not connected yet.";
+
 function newId(prefix: string) {
   const cryptoObj = globalThis.crypto;
   const random = cryptoObj?.randomUUID ? cryptoObj.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -40,6 +44,11 @@ function dueCopy(deadline: ProjectDeadline) {
 
 function laterMilestones(deadline: ProjectDeadline, milestones: Milestone[]) {
   return milestones.filter((m) => m.project_id === deadline.project.project_id && m.status === "active" && m.milestone_id !== deadline.milestone.milestone_id && m.deadline_date >= deadline.milestone.deadline_date);
+}
+
+function friendlyWriteMessage(error: unknown) {
+  if (!(error instanceof Error)) return PROJECT_WRITE_ERROR;
+  return error.message === PROJECT_NOT_CONNECTED || error.message === PROJECT_WRITE_ERROR || error.message.startsWith("Add at least") ? error.message : PROJECT_WRITE_ERROR;
 }
 
 export default function ProjectsClient() {
@@ -72,20 +81,24 @@ export default function ProjectsClient() {
 
   useEffect(() => {
     fetch("/api/projects", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data: ProjectsApiPayload) => {
+      .then(async (response) => {
+        const data = (await response.json()) as ProjectsApiPayload;
+        if (!response.ok) throw new Error(data.warning || PROJECT_READ_ERROR);
+        return data;
+      })
+      .then((data) => {
         setEvents(data.events || []);
         setConfigured(data.configured);
-        setWarning(data.warning || null);
+        setWarning(data.warning || (!data.ok ? PROJECT_READ_ERROR : null));
       })
-      .catch(() => setWarning("Project deadlines could not be loaded."))
+      .catch(() => setWarning(PROJECT_READ_ERROR))
       .finally(() => setLoading(false));
   }, []);
 
   const state = useMemo(() => reduceProjectEvents(events), [events]);
   const activeProjects = state.projects.filter((project) => project.status === "active");
 
-  async function appendEvents(nextEvents: ProjectEvent[]) {
+  async function appendEvents(nextEvents: ProjectEvent[]): Promise<boolean> {
     setSaving(true);
     setWarning(null);
     try {
@@ -96,10 +109,12 @@ export default function ProjectsClient() {
         body: JSON.stringify({ events: nextEvents })
       });
       const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.warning || "Project changes could not be saved.");
+      if (!response.ok || !data.ok) throw new Error(data.warning || PROJECT_WRITE_ERROR);
       setEvents((current) => [...current, ...nextEvents]);
+      return true;
     } catch (error) {
-      setWarning(error instanceof Error ? error.message : "Project changes could not be saved.");
+      setWarning(friendlyWriteMessage(error));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -118,7 +133,7 @@ export default function ProjectsClient() {
     if (edit.deadline_date !== deadline.milestone.deadline_date) {
       nextEvents.push(createProjectEvent("change_deadline", deadline.project.project_id, deadline.milestone.milestone_id, { previous_deadline_date: deadline.milestone.deadline_date, deadline_date: edit.deadline_date }));
     }
-    if (nextEvents.length) await appendEvents(nextEvents);
+    if (nextEvents.length && !(await appendEvents(nextEvents))) return;
     setEditingId(null);
   }
 
@@ -127,21 +142,21 @@ export default function ProjectsClient() {
     if (!newProject.project_name.trim() || !newProject.milestone_name.trim() || !newProject.deadline_date) return;
     const projectId = newId("project");
     const milestoneId = newId("milestone");
-    await appendEvents([
+    const saved = await appendEvents([
       createProjectEvent("create_project", projectId, undefined, { project_name: newProject.project_name.trim(), project_type: newProject.project_type.trim(), notes: newProject.notes.trim(), status: "active", created_at: localProjectToday() }),
       createProjectEvent("add_milestone", projectId, milestoneId, { milestone_name: newProject.milestone_name.trim(), deadline_date: newProject.deadline_date, notes: "", status: "active", created_at: localProjectToday(), sort_order: 0 })
     ]);
-    setNewProject({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
+    if (saved) setNewProject({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
   }
 
   async function addMilestone(e: React.FormEvent) {
     e.preventDefault();
     if (!newMilestone.project_id || !newMilestone.milestone_name.trim() || !newMilestone.deadline_date) return;
     const sortOrder = state.milestones.filter((m) => m.project_id === newMilestone.project_id).length;
-    await appendEvents([
+    const saved = await appendEvents([
       createProjectEvent("add_milestone", newMilestone.project_id, newId("milestone"), { milestone_name: newMilestone.milestone_name.trim(), deadline_date: newMilestone.deadline_date, notes: newMilestone.notes.trim(), status: "active", created_at: localProjectToday(), sort_order: sortOrder })
     ]);
-    setNewMilestone({ project_id: newMilestone.project_id, milestone_name: "", deadline_date: localProjectToday(), notes: "" });
+    if (saved) setNewMilestone({ project_id: newMilestone.project_id, milestone_name: "", deadline_date: localProjectToday(), notes: "" });
   }
 
   function completionEvents(deadline: ProjectDeadline, adjustment: "none" | "auto", manualDates?: Record<string, string>) {
@@ -165,8 +180,8 @@ export default function ProjectsClient() {
   }
 
   async function complete(deadline: ProjectDeadline, adjustment: "none" | "auto", manualDates?: Record<string, string>) {
-    await appendEvents(completionEvents(deadline, adjustment, manualDates));
-    setManualAdjust(null);
+    const saved = await appendEvents(completionEvents(deadline, adjustment, manualDates));
+    if (saved) setManualAdjust(null);
   }
 
   return (
@@ -184,7 +199,7 @@ export default function ProjectsClient() {
       </header>
 
       {warning && <section className="panel projectNotice"><strong>Note:</strong> {warning}</section>}
-      {!configured && <section className="panel projectNotice">Project storage is not configured yet. Add the Google Sheets/App Script environment variables to save project events.</section>}
+      {!configured && <section className="panel projectNotice">{PROJECT_NOT_CONNECTED}</section>}
 
       <section className="panel projectFormPanel">
         <h2>Add a project deadline</h2>

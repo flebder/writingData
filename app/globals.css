@@ -225,7 +225,8 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .projectBar.soon { border-color: #d5b66c; background: color-mix(in srgb, var(--paper) 68%, #f2d486 32%); }
 .projectBar.today { border-color: #c8942f; background: color-mix(in srgb, var(--paper) 58%, #e3b85a 42%); }
 .projectBar.overdue { border-color: #c98282; background: color-mix(in srgb, var(--paper) 62%, #d98c8c 38%); }
-.projectBar.empty, .projectBar.loading { color: var(--muted); }
+.projectBar.empty, .projectBar.loading, .projectBar.unavailable { color: var(--muted); }
+.projectBar.unavailable { border-style: dashed; background: color-mix(in srgb, var(--paper) 86%, var(--accent-soft) 14%); }
 .day, .mini { position: relative; }
 .day.hasDue .dueMarker, .mini.hasDue .dueMarker {
   position: absolute;

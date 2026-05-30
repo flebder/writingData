@@ -8,6 +8,9 @@ import type { ProjectDeadline, ProjectState } from "@/lib/projects";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
 type ProjectsPayload = { ok: boolean; configured: boolean; state: ProjectState; warning?: string };
+
+const EMPTY_PROJECT_STATE: ProjectState = { projects: [], milestones: [], activeDeadlines: [], completedMilestones: [], nextDeadline: null };
+const PROJECTS_UNAVAILABLE: ProjectsPayload = { ok: false, configured: true, state: EMPTY_PROJECT_STATE, warning: "Project deadlines unavailable" };
 type ViewMode = "month" | "year";
 type CalendarMode = "grid" | "line";
 
@@ -171,7 +174,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetch("/api/sessions", { cache: "no-store" }).then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
-    fetch("/api/projects", { cache: "no-store" }).then((r) => r.json()).then(setProjectsPayload).catch(() => setProjectsPayload(null));
+    fetch("/api/projects", { cache: "no-store" }).then((r) => r.json()).then((data) => setProjectsPayload(data?.state ? data : PROJECTS_UNAVAILABLE)).catch(() => setProjectsPayload(PROJECTS_UNAVAILABLE));
   }, []);
 
   useEffect(() => {
@@ -266,7 +269,8 @@ export default function Dashboard() {
     return grouped;
   }, [projectDeadlines]);
   const projectBarDeadline = projectsPayload?.state?.nextDeadline || null;
-  const projectBarClass = projectBarDeadline?.urgency || (projectsPayload === null ? "loading" : "empty");
+  const projectsUnavailable = projectsPayload !== null && !projectsPayload.ok && Boolean(projectsPayload.warning);
+  const projectBarClass = projectsUnavailable ? "unavailable" : projectBarDeadline?.urgency || (projectsPayload === null ? "loading" : "empty");
 
   const weekdayBars = useMemo(() => {
     const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -337,7 +341,7 @@ export default function Dashboard() {
 
   return (
     <main className="journalShell">
-      <header className="hero"><h1>Writing Journal</h1><a className={`projectBar ${projectBarClass}`} href="/projects">{projectsPayload === null ? "Loading project deadline…" : projectBarLabel(projectBarDeadline)}</a><div className="heroActions"><button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong className="streakCount">{payload === null ? "…" : (streaks.current?.days ?? 0)}</strong></button></div></header>
+      <header className="hero"><h1>Writing Journal</h1><a className={`projectBar ${projectBarClass}`} href="/projects">{projectsPayload === null ? "Loading project deadline…" : projectsUnavailable ? "Project deadlines unavailable" : projectBarLabel(projectBarDeadline)}</a><div className="heroActions"><button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong className="streakCount">{payload === null ? "…" : (streaks.current?.days ?? 0)}</strong></button></div></header>
 
       {payload === null ? (
         <div className="dashboardSkeleton" aria-live="polite" aria-busy="true">
