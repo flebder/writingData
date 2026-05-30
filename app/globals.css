@@ -387,3 +387,32 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   .newProjectButton { flex: 1; }
   .archiveToggle { grid-template-columns: 1fr auto auto; }
 }
+
+/* Deadline Compass refinement */
+.projectBar { gap: 7px; min-height: 42px; padding: 10px 20px; }
+.projectBarName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projectBarSep, .projectBarDate { opacity: 0.72; font-weight: 600; }
+.projectBar strong { white-space: nowrap; font-weight: 800; }
+.projectBar.future { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 76%, #b8d9c4 24%), color-mix(in srgb, #d6eadc 62%, var(--paper) 38%)); border-color: #8eb69c; }
+.projectBar.approaching { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 70%, #d6d99a 30%), color-mix(in srgb, #e6dda0 70%, var(--paper) 30%)); border-color: #b9aa57; color: #4f4518; }
+.addChoiceRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 4px 0 14px; }
+.addChoice { min-height: 90px; border-radius: 16px; border: 1px solid var(--line); background: linear-gradient(135deg, var(--paper), color-mix(in srgb, var(--accent-soft) 34%, var(--paper) 66%)); color: var(--ink); display: grid; align-content: center; gap: 4px; text-align: left; padding: 14px 16px; box-shadow: 0 10px 22px rgba(31, 56, 42, 0.08); }
+.addChoice strong { font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 19px; }
+.addChoice span { color: var(--muted); font-size: 13px; line-height: 1.35; }
+.addChoice.active { border-color: color-mix(in srgb, var(--accent) 56%, var(--line) 44%); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-soft) 58%, transparent); }
+.addChoice:disabled { opacity: 0.56; cursor: not-allowed; }
+.projectCard.future { border-left-color: #8eb69c; }
+.projectCard.approaching { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #e6dda0 30%, var(--paper) 70%)); border-left-color: #b9aa57; }
+.projectCard.approaching .deadlinePill { background: color-mix(in srgb, #e6dda0 54%, var(--paper) 46%); color: #5b4f18; }
+[data-theme="dark"] .projectBar.future { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 76%, #41634f 24%), color-mix(in srgb, #385141 56%, var(--paper) 44%)); border-color: #5f8b70; }
+[data-theme="dark"] .projectBar.approaching { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 72%, #6f6129 28%), #514925); border-color: #92823d; color: #f1e8c6; }
+[data-theme="dark"] .addChoice { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, var(--accent-soft) 26%, var(--paper) 74%)); border-color: #394a42; box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22); }
+[data-theme="dark"] .addChoice.active { border-color: #6b917b; box-shadow: 0 0 0 2px rgba(98, 132, 112, 0.32); }
+[data-theme="dark"] .projectCard.future { border-left-color: #5f8b70; }
+[data-theme="dark"] .projectCard.approaching { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #6f6129 25%, var(--paper) 75%)); border-left-color: #92823d; }
+[data-theme="dark"] .projectCard.approaching .deadlinePill { background: #514925; color: #f1e8c6; }
+@media (max-width: 560px) {
+  .projectBar { flex-wrap: wrap; justify-content: center; row-gap: 2px; }
+  .projectBarName { max-width: 100%; }
+  .addChoiceRow { grid-template-columns: 1fr; }
+}

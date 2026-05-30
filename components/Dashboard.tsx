@@ -63,9 +63,13 @@ function projectDueText(deadline: ProjectDeadline): string {
   return `${deadline.daysUntil} ${deadline.daysUntil === 1 ? "day" : "days"} left`;
 }
 
-function projectBarLabel(deadline: ProjectDeadline | null): string {
-  if (!deadline) return "No active project deadline";
-  return `${deadline.milestone.milestone_name} · ${formatProjectDate(deadline.milestone.deadline_date)} · ${projectDueText(deadline)}`;
+function projectUiUrgency(deadline: ProjectDeadline | null): "overdue" | "today" | "soon" | "approaching" | "future" | null {
+  if (!deadline) return null;
+  if (deadline.daysUntil < 0) return "overdue";
+  if (deadline.daysUntil === 0) return "today";
+  if (deadline.daysUntil <= 5) return "soon";
+  if (deadline.daysUntil <= 14) return "approaching";
+  return "future";
 }
 
 function ymdFromUtcDate(date: Date): string {
@@ -270,7 +274,7 @@ export default function Dashboard() {
   }, [projectDeadlines]);
   const projectBarDeadline = projectsPayload?.state?.nextDeadline || null;
   const projectsUnavailable = projectsPayload !== null && !projectsPayload.ok && Boolean(projectsPayload.warning);
-  const projectBarClass = projectsUnavailable ? "unavailable" : projectBarDeadline?.urgency || (projectsPayload === null ? "loading" : "empty");
+  const projectBarClass = projectsUnavailable ? "unavailable" : projectUiUrgency(projectBarDeadline) || (projectsPayload === null ? "loading" : "empty");
 
   const weekdayBars = useMemo(() => {
     const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -341,7 +345,7 @@ export default function Dashboard() {
 
   return (
     <main className="journalShell">
-      <header className="hero"><h1>Writing Journal</h1><a className={`projectBar ${projectBarClass}`} href="/projects">{projectsPayload === null ? "Loading project deadline…" : projectsUnavailable ? "Project deadlines unavailable" : projectBarLabel(projectBarDeadline)}</a><div className="heroActions"><button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong className="streakCount">{payload === null ? "…" : (streaks.current?.days ?? 0)}</strong></button></div></header>
+      <header className="hero"><h1>Writing Journal</h1><a className={`projectBar ${projectBarClass}`} href="/projects">{projectsPayload === null ? "Loading project deadline…" : projectsUnavailable ? "Project deadlines unavailable" : projectBarDeadline ? <><span className="projectBarName">{projectBarDeadline.milestone.milestone_name}</span><span className="projectBarSep">—</span><strong>{projectDueText(projectBarDeadline)}</strong><span className="projectBarDate">· {formatProjectDate(projectBarDeadline.milestone.deadline_date)}</span></> : "No active project deadline"}</a><div className="heroActions"><button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button><button className="streakBadge" onClick={() => setExpanded("streak")} title="View streak details"><span className={streaks.todayQualified ? "flame active" : "flame"}>🔥</span><strong className="streakCount">{payload === null ? "…" : (streaks.current?.days ?? 0)}</strong></button></div></header>
 
       {payload === null ? (
         <div className="dashboardSkeleton" aria-live="polite" aria-busy="true">

@@ -20,6 +20,7 @@ type ManualAdjustState = {
   completing: ProjectDeadline;
   dates: Record<string, string>;
 };
+type AddMode = "project" | "milestone" | null;
 
 const PROJECT_READ_ERROR = "Project deadlines could not be loaded right now. Your writing dashboard is still available.";
 const PROJECT_WRITE_ERROR = "Project changes could not be saved right now. Please try again in a moment.";
@@ -46,6 +47,14 @@ function laterMilestones(deadline: ProjectDeadline, milestones: Milestone[]) {
   return milestones.filter((m) => m.project_id === deadline.project.project_id && m.status === "active" && m.milestone_id !== deadline.milestone.milestone_id && m.deadline_date >= deadline.milestone.deadline_date);
 }
 
+function projectUiUrgency(deadline: ProjectDeadline): "overdue" | "today" | "soon" | "approaching" | "future" {
+  if (deadline.daysUntil < 0) return "overdue";
+  if (deadline.daysUntil === 0) return "today";
+  if (deadline.daysUntil <= 5) return "soon";
+  if (deadline.daysUntil <= 14) return "approaching";
+  return "future";
+}
+
 function friendlyWriteMessage(error: unknown) {
   if (!(error instanceof Error)) return PROJECT_WRITE_ERROR;
   return error.message === PROJECT_NOT_CONNECTED || error.message === PROJECT_WRITE_ERROR || error.message.startsWith("Add at least") ? error.message : PROJECT_WRITE_ERROR;
@@ -63,6 +72,7 @@ export default function ProjectsClient() {
   const [edit, setEdit] = useState<EditMilestoneState>({ milestone_name: "", deadline_date: "", notes: "" });
   const [manualAdjust, setManualAdjust] = useState<ManualAdjustState | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
+  const [addMode, setAddMode] = useState<AddMode>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [newProject, setNewProject] = useState({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
   const [newMilestone, setNewMilestone] = useState({ project_id: "", milestone_name: "", deadline_date: localProjectToday(), notes: "" });
@@ -150,6 +160,7 @@ export default function ProjectsClient() {
     ]);
     if (saved) {
       setNewProject({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
+      setAddMode(null);
       setShowProjectForm(false);
     }
   }
@@ -161,7 +172,11 @@ export default function ProjectsClient() {
     const saved = await appendEvents([
       createProjectEvent("add_milestone", newMilestone.project_id, newId("milestone"), { milestone_name: newMilestone.milestone_name.trim(), deadline_date: newMilestone.deadline_date, notes: newMilestone.notes.trim(), status: "active", created_at: localProjectToday(), sort_order: sortOrder })
     ]);
-    if (saved) setNewMilestone({ project_id: newMilestone.project_id, milestone_name: "", deadline_date: localProjectToday(), notes: "" });
+    if (saved) {
+      setNewMilestone({ project_id: newMilestone.project_id, milestone_name: "", deadline_date: localProjectToday(), notes: "" });
+      setAddMode(null);
+      setShowProjectForm(false);
+    }
   }
 
   function completionEvents(deadline: ProjectDeadline, adjustment: "none" | "auto", manualDates?: Record<string, string>) {
@@ -194,13 +209,9 @@ export default function ProjectsClient() {
       <header className="projectsHeader">
         <a className="backLink" href="/">← Writing Journal</a>
         <div className="projectsHeaderRow">
-          <div>
-            <p className="eyebrow">Projects / Deadlines</p>
-            <h1>Deadline compass</h1>
-            <p className="projectsIntro">A quiet place for the next few writing promises, kept separate from your writing-session data.</p>
-          </div>
+          <h1>Deadline Compass</h1>
           <div className="projectsHeaderActions">
-            <button className="newProjectButton" onClick={() => setShowProjectForm((open) => !open)}>{showProjectForm ? "Close" : "New project"}</button>
+            <button className="newProjectButton" onClick={() => { setShowProjectForm((open) => !open); setAddMode(null); }}>{showProjectForm ? "Close" : "Add deadline"}</button>
             <button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button>
           </div>
         </div>
@@ -215,12 +226,11 @@ export default function ProjectsClient() {
             <p className="eyebrow">Next promises</p>
             <h2>Active deadlines</h2>
           </div>
-          <button className="secondaryProjectButton" onClick={() => setShowProjectForm(true)}>Add project</button>
         </div>
         {loading ? <article className="panel projectCard projectCardFeature">Loading project deadlines…</article> : state.activeDeadlines.length ? state.activeDeadlines.map((deadline, index) => {
           const later = laterMilestones(deadline, state.milestones);
           const isEditing = editingId === deadline.milestone.milestone_id;
-          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${deadline.urgency}`}>
+          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${projectUiUrgency(deadline)}`}>
             <div className="projectCardTop"><div><p className="eyebrow">{deadline.project.project_name}{deadline.project.project_type ? ` · ${deadline.project.project_type}` : ""}</p>{isEditing ? <input className="projectTitleInput" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}</div><strong className="deadlinePill">{dueCopy(deadline)}</strong></div>
             <div className="projectMeta">Due {isEditing ? <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /> : formatDeadline(deadline.milestone.deadline_date)}</div>
             {isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : null}
@@ -232,27 +242,28 @@ export default function ProjectsClient() {
 
       {showProjectForm && <section className="panel projectFormPanel projectComposer">
         <div className="projectsSectionHeader">
-          <div><p className="eyebrow">Capture a promise</p><h2>Add project</h2></div>
-          <button className="secondaryProjectButton" onClick={() => setShowProjectForm(false)}>Close</button>
+          <div><p className="eyebrow">Add deadline</p><h2>What are you adding?</h2></div>
+          <button className="secondaryProjectButton" onClick={() => { setShowProjectForm(false); setAddMode(null); }}>Cancel</button>
         </div>
-        <form className="projectForm" onSubmit={addProject}>
+        <div className="addChoiceRow">
+          <button className={addMode === "project" ? "addChoice active" : "addChoice"} onClick={() => setAddMode("project")}><strong>New project</strong><span>Start a new writing promise with its first milestone.</span></button>
+          <button className={addMode === "milestone" ? "addChoice active" : "addChoice"} onClick={() => setAddMode("milestone")} disabled={!activeProjects.length}><strong>New milestone</strong><span>{activeProjects.length ? "Add a deadline to an existing project." : "Create a project first."}</span></button>
+        </div>
+        {addMode === "project" && <form className="projectForm" onSubmit={addProject}>
           <label>Project name<input value={newProject.project_name} onChange={(e) => setNewProject({ ...newProject, project_name: e.target.value })} placeholder="Pilot Script" /></label>
           <label>Type<input value={newProject.project_type} onChange={(e) => setNewProject({ ...newProject, project_type: e.target.value })} placeholder="optional" /></label>
           <label>First milestone<input value={newProject.milestone_name} onChange={(e) => setNewProject({ ...newProject, milestone_name: e.target.value })} placeholder="Finish outline" /></label>
           <label>Due date<input type="date" value={newProject.deadline_date} onChange={(e) => setNewProject({ ...newProject, deadline_date: e.target.value })} /></label>
           <label className="wide">Notes<textarea value={newProject.notes} onChange={(e) => setNewProject({ ...newProject, notes: e.target.value })} placeholder="Optional context" /></label>
           <button className="wide" disabled={saving}>{saving ? "Saving…" : "Add project"}</button>
-        </form>
-        <div className="milestoneComposer">
-          <h3>Add a milestone to an existing project</h3>
-          <form className="projectForm" onSubmit={addMilestone}>
-            <label>Project<select value={newMilestone.project_id} onChange={(e) => setNewMilestone({ ...newMilestone, project_id: e.target.value })}><option value="">Choose project</option>{activeProjects.map((project) => <option key={project.project_id} value={project.project_id}>{project.project_name}</option>)}</select></label>
-            <label>Milestone<input value={newMilestone.milestone_name} onChange={(e) => setNewMilestone({ ...newMilestone, milestone_name: e.target.value })} placeholder="Polish draft" /></label>
-            <label>Due date<input type="date" value={newMilestone.deadline_date} onChange={(e) => setNewMilestone({ ...newMilestone, deadline_date: e.target.value })} /></label>
-            <label>Notes<input value={newMilestone.notes} onChange={(e) => setNewMilestone({ ...newMilestone, notes: e.target.value })} placeholder="optional" /></label>
-            <button className="wide" disabled={saving || !activeProjects.length}>{saving ? "Saving…" : "Add milestone"}</button>
-          </form>
-        </div>
+        </form>}
+        {addMode === "milestone" && <form className="projectForm" onSubmit={addMilestone}>
+          <label>Project<select value={newMilestone.project_id} onChange={(e) => setNewMilestone({ ...newMilestone, project_id: e.target.value })}><option value="">Choose project</option>{activeProjects.map((project) => <option key={project.project_id} value={project.project_id}>{project.project_name}</option>)}</select></label>
+          <label>Milestone<input value={newMilestone.milestone_name} onChange={(e) => setNewMilestone({ ...newMilestone, milestone_name: e.target.value })} placeholder="Polish draft" /></label>
+          <label>Due date<input type="date" value={newMilestone.deadline_date} onChange={(e) => setNewMilestone({ ...newMilestone, deadline_date: e.target.value })} /></label>
+          <label>Notes<input value={newMilestone.notes} onChange={(e) => setNewMilestone({ ...newMilestone, notes: e.target.value })} placeholder="optional" /></label>
+          <button className="wide" disabled={saving || !activeProjects.length}>{saving ? "Saving…" : "Add milestone"}</button>
+        </form>}
       </section>}
 
       <section className="projectsList completedProjects">
