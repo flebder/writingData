@@ -62,6 +62,8 @@ export default function ProjectsClient() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [edit, setEdit] = useState<EditMilestoneState>({ milestone_name: "", deadline_date: "", notes: "" });
   const [manualAdjust, setManualAdjust] = useState<ManualAdjustState | null>(null);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
   const [newProject, setNewProject] = useState({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
   const [newMilestone, setNewMilestone] = useState({ project_id: "", milestone_name: "", deadline_date: localProjectToday(), notes: "" });
 
@@ -146,7 +148,10 @@ export default function ProjectsClient() {
       createProjectEvent("create_project", projectId, undefined, { project_name: newProject.project_name.trim(), project_type: newProject.project_type.trim(), notes: newProject.notes.trim(), status: "active", created_at: localProjectToday() }),
       createProjectEvent("add_milestone", projectId, milestoneId, { milestone_name: newProject.milestone_name.trim(), deadline_date: newProject.deadline_date, notes: "", status: "active", created_at: localProjectToday(), sort_order: 0 })
     ]);
-    if (saved) setNewProject({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
+    if (saved) {
+      setNewProject({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
+      setShowProjectForm(false);
+    }
   }
 
   async function addMilestone(e: React.FormEvent) {
@@ -194,15 +199,42 @@ export default function ProjectsClient() {
             <h1>Deadline compass</h1>
             <p className="projectsIntro">A quiet place for the next few writing promises, kept separate from your writing-session data.</p>
           </div>
-          <button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button>
+          <div className="projectsHeaderActions">
+            <button className="newProjectButton" onClick={() => setShowProjectForm((open) => !open)}>{showProjectForm ? "Close" : "New project"}</button>
+            <button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button>
+          </div>
         </div>
       </header>
 
       {warning && <section className="panel projectNotice"><strong>Note:</strong> {warning}</section>}
       {!configured && <section className="panel projectNotice">{PROJECT_NOT_CONNECTED}</section>}
 
-      <section className="panel projectFormPanel">
-        <h2>Add a project deadline</h2>
+      <section className="projectsList activeProjectsList">
+        <div className="projectsSectionHeader">
+          <div>
+            <p className="eyebrow">Next promises</p>
+            <h2>Active deadlines</h2>
+          </div>
+          <button className="secondaryProjectButton" onClick={() => setShowProjectForm(true)}>Add project</button>
+        </div>
+        {loading ? <article className="panel projectCard projectCardFeature">Loading project deadlines…</article> : state.activeDeadlines.length ? state.activeDeadlines.map((deadline, index) => {
+          const later = laterMilestones(deadline, state.milestones);
+          const isEditing = editingId === deadline.milestone.milestone_id;
+          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${deadline.urgency}`}>
+            <div className="projectCardTop"><div><p className="eyebrow">{deadline.project.project_name}{deadline.project.project_type ? ` · ${deadline.project.project_type}` : ""}</p>{isEditing ? <input className="projectTitleInput" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}</div><strong className="deadlinePill">{dueCopy(deadline)}</strong></div>
+            <div className="projectMeta">Due {isEditing ? <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /> : formatDeadline(deadline.milestone.deadline_date)}</div>
+            {isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : null}
+            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox"><p>Adjust upcoming deadlines?</p><button onClick={() => complete(deadline, "auto")} disabled={saving}>Auto-adjust by completion offset</button><button onClick={() => complete(deadline, "none")} disabled={saving}>Do not adjust</button>{later.map((milestone) => <label key={milestone.milestone_id}>{milestone.milestone_name}<input type="date" value={manualAdjust.dates[milestone.milestone_id]} onChange={(e) => setManualAdjust({ completing: deadline, dates: { ...manualAdjust.dates, [milestone.milestone_id]: e.target.value } })} /></label>)}<button onClick={() => complete(deadline, "none", manualAdjust.dates)} disabled={saving}>Save manual dates</button></div>}
+            <div className="projectActions">{isEditing ? <><button onClick={() => saveEdit(deadline)} disabled={saving}>Save changes</button><button onClick={() => setEditingId(null)}>Cancel</button></> : <><button onClick={() => startEdit(deadline)}>Edit</button><button onClick={() => later.length ? setManualAdjust({ completing: deadline, dates: Object.fromEntries(later.map((m) => [m.milestone_id, m.deadline_date])) }) : complete(deadline, "none")} disabled={saving}>Mark complete</button></>}</div>
+          </article>;
+        }) : <article className="panel projectCard projectCardFeature emptyProject">No active project deadline</article>}
+      </section>
+
+      {showProjectForm && <section className="panel projectFormPanel projectComposer">
+        <div className="projectsSectionHeader">
+          <div><p className="eyebrow">Capture a promise</p><h2>Add project</h2></div>
+          <button className="secondaryProjectButton" onClick={() => setShowProjectForm(false)}>Close</button>
+        </div>
         <form className="projectForm" onSubmit={addProject}>
           <label>Project name<input value={newProject.project_name} onChange={(e) => setNewProject({ ...newProject, project_name: e.target.value })} placeholder="Pilot Script" /></label>
           <label>Type<input value={newProject.project_type} onChange={(e) => setNewProject({ ...newProject, project_type: e.target.value })} placeholder="optional" /></label>
@@ -211,37 +243,23 @@ export default function ProjectsClient() {
           <label className="wide">Notes<textarea value={newProject.notes} onChange={(e) => setNewProject({ ...newProject, notes: e.target.value })} placeholder="Optional context" /></label>
           <button className="wide" disabled={saving}>{saving ? "Saving…" : "Add project"}</button>
         </form>
-      </section>
-
-      <section className="panel projectFormPanel">
-        <h2>Add a milestone</h2>
-        <form className="projectForm" onSubmit={addMilestone}>
-          <label>Project<select value={newMilestone.project_id} onChange={(e) => setNewMilestone({ ...newMilestone, project_id: e.target.value })}><option value="">Choose project</option>{activeProjects.map((project) => <option key={project.project_id} value={project.project_id}>{project.project_name}</option>)}</select></label>
-          <label>Milestone<input value={newMilestone.milestone_name} onChange={(e) => setNewMilestone({ ...newMilestone, milestone_name: e.target.value })} placeholder="Polish draft" /></label>
-          <label>Due date<input type="date" value={newMilestone.deadline_date} onChange={(e) => setNewMilestone({ ...newMilestone, deadline_date: e.target.value })} /></label>
-          <label>Notes<input value={newMilestone.notes} onChange={(e) => setNewMilestone({ ...newMilestone, notes: e.target.value })} placeholder="optional" /></label>
-          <button className="wide" disabled={saving || !activeProjects.length}>{saving ? "Saving…" : "Add milestone"}</button>
-        </form>
-      </section>
-
-      <section className="projectsList">
-        <h2>Active deadlines</h2>
-        {loading ? <article className="panel projectCard">Loading project deadlines…</article> : state.activeDeadlines.length ? state.activeDeadlines.map((deadline) => {
-          const later = laterMilestones(deadline, state.milestones);
-          const isEditing = editingId === deadline.milestone.milestone_id;
-          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${deadline.urgency}`}>
-            <div className="projectCardTop"><div><p className="eyebrow">{deadline.project.project_name}{deadline.project.project_type ? ` · ${deadline.project.project_type}` : ""}</p>{isEditing ? <input className="projectTitleInput" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}</div><strong>{dueCopy(deadline)}</strong></div>
-            <div className="projectMeta">Due {isEditing ? <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /> : formatDeadline(deadline.milestone.deadline_date)}</div>
-            {isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : null}
-            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox"><p>Adjust upcoming deadlines?</p><button onClick={() => complete(deadline, "auto")} disabled={saving}>Auto-adjust by completion offset</button><button onClick={() => complete(deadline, "none")} disabled={saving}>Do not adjust</button>{later.map((milestone) => <label key={milestone.milestone_id}>{milestone.milestone_name}<input type="date" value={manualAdjust.dates[milestone.milestone_id]} onChange={(e) => setManualAdjust({ completing: deadline, dates: { ...manualAdjust.dates, [milestone.milestone_id]: e.target.value } })} /></label>)}<button onClick={() => complete(deadline, "none", manualAdjust.dates)} disabled={saving}>Save manual dates</button></div>}
-            <div className="projectActions">{isEditing ? <><button onClick={() => saveEdit(deadline)} disabled={saving}>Save changes</button><button onClick={() => setEditingId(null)}>Cancel</button></> : <><button onClick={() => startEdit(deadline)}>Edit</button><button onClick={() => later.length ? setManualAdjust({ completing: deadline, dates: Object.fromEntries(later.map((m) => [m.milestone_id, m.deadline_date])) }) : complete(deadline, "none")} disabled={saving}>Mark complete</button></>}</div>
-          </article>;
-        }) : <article className="panel projectCard emptyProject">No active project deadline</article>}
-      </section>
+        <div className="milestoneComposer">
+          <h3>Add a milestone to an existing project</h3>
+          <form className="projectForm" onSubmit={addMilestone}>
+            <label>Project<select value={newMilestone.project_id} onChange={(e) => setNewMilestone({ ...newMilestone, project_id: e.target.value })}><option value="">Choose project</option>{activeProjects.map((project) => <option key={project.project_id} value={project.project_id}>{project.project_name}</option>)}</select></label>
+            <label>Milestone<input value={newMilestone.milestone_name} onChange={(e) => setNewMilestone({ ...newMilestone, milestone_name: e.target.value })} placeholder="Polish draft" /></label>
+            <label>Due date<input type="date" value={newMilestone.deadline_date} onChange={(e) => setNewMilestone({ ...newMilestone, deadline_date: e.target.value })} /></label>
+            <label>Notes<input value={newMilestone.notes} onChange={(e) => setNewMilestone({ ...newMilestone, notes: e.target.value })} placeholder="optional" /></label>
+            <button className="wide" disabled={saving || !activeProjects.length}>{saving ? "Saving…" : "Add milestone"}</button>
+          </form>
+        </div>
+      </section>}
 
       <section className="projectsList completedProjects">
-        <h2>Completed / archive</h2>
-        {state.completedMilestones.length ? state.completedMilestones.map((deadline) => <article key={deadline.milestone.milestone_id} className="panel projectCard completed"><div><p className="eyebrow">{deadline.project.project_name}</p><h3>{deadline.milestone.milestone_name}</h3></div><p>Completed {deadline.milestone.completed_at || "recently"} · due {formatDeadline(deadline.milestone.deadline_date)}</p></article>) : <article className="panel projectCard emptyProject">Completed milestones will collect here.</article>}
+        <button className="archiveToggle" onClick={() => setShowArchive((open) => !open)} aria-expanded={showArchive}>
+          <span>Archive</span><small>{state.completedMilestones.length} completed</small><span>{showArchive ? "−" : "+"}</span>
+        </button>
+        {showArchive && (state.completedMilestones.length ? state.completedMilestones.map((deadline) => <article key={deadline.milestone.milestone_id} className="panel projectCard completed"><div><p className="eyebrow">{deadline.project.project_name}</p><h3>{deadline.milestone.milestone_name}</h3></div><p>Completed {deadline.milestone.completed_at || "recently"} · due {formatDeadline(deadline.milestone.deadline_date)}</p></article>) : <article className="panel projectCard emptyProject">Completed milestones will collect here.</article>)}
       </section>
     </main>
   );

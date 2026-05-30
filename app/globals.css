@@ -308,3 +308,82 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .streakCount { min-width: 14px; line-height: 1; font-variant-numeric: tabular-nums; transform: translateY(0.5px); }
 .projectsHeaderRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 @media (max-width: 720px) { .projectsHeaderRow { align-items: center; } }
+
+/* Projects polish pass */
+.projectBar {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line) 74%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 86%, #ffffff 14%), color-mix(in srgb, var(--accent-soft) 72%, var(--paper) 28%));
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(31, 56, 42, 0.12);
+}
+.projectBar.soon { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 70%, #f4dc95 30%), #f1d689); border-color: #cda84f; }
+.projectBar.today { background: linear-gradient(135deg, #f5d579, #ddb04d); border-color: #b88223; color: #4f3712; }
+.projectBar.overdue { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 64%, #d98c8c 36%), #d9a0a0); border-color: #b86b70; color: #5b2e31; }
+.projectBar.unavailable { background: color-mix(in srgb, var(--paper) 88%, var(--accent-soft) 12%); }
+.projectsHeader { padding: 10px 0 2px; }
+.projectsHeaderRow { align-items: center; }
+.projectsHeaderActions { display: inline-flex; align-items: center; gap: 9px; }
+.newProjectButton, .secondaryProjectButton, .archiveToggle {
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line) 68%);
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--paper) 42%);
+  color: var(--ink);
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.08);
+  font-weight: 700;
+}
+.newProjectButton { min-height: 38px; padding: 8px 16px; }
+.secondaryProjectButton { min-height: 34px; padding: 7px 13px; }
+.projectsSectionHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.projectsSectionHeader h2 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 25px; }
+.activeProjectsList { gap: 12px; }
+.projectCard {
+  border-left: 4px solid color-mix(in srgb, var(--accent) 34%, var(--line) 66%);
+  background: linear-gradient(135deg, var(--paper), color-mix(in srgb, var(--accent-soft) 28%, var(--paper) 72%));
+}
+.projectCardFeature { padding: 16px 18px; box-shadow: 0 14px 30px rgba(31, 56, 42, 0.12); }
+.projectCard.soon { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #f2d486 34%, var(--paper) 66%)); border-left-color: #cda84f; }
+.projectCard.today { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 74%, #f3d070 26%), color-mix(in srgb, #e0b24d 32%, var(--paper) 68%)); border-left-color: #b88223; }
+.projectCard.overdue { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #d98c8c 34%, var(--paper) 66%)); border-left-color: #b86b70; }
+.deadlinePill { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 11px; border-radius: 999px; background: color-mix(in srgb, var(--accent-soft) 68%, var(--paper) 32%); }
+.projectCard.soon .deadlinePill { background: color-mix(in srgb, #f2d486 56%, var(--paper) 44%); color: #6e5117; }
+.projectCard.today .deadlinePill { background: #e2b44f; color: #4f3712; }
+.projectCard.overdue .deadlinePill { background: color-mix(in srgb, #d98c8c 58%, var(--paper) 42%); color: #653237; }
+.projectComposer { border-color: color-mix(in srgb, var(--accent) 24%, var(--line) 76%); box-shadow: 0 14px 30px rgba(31, 56, 42, 0.10); }
+.milestoneComposer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.milestoneComposer h3 { margin: 0 0 10px; font-family: "Iowan Old Style", "Times New Roman", serif; }
+.completedProjects { gap: 8px; }
+.archiveToggle { width: 100%; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 10px 14px; text-align: left; background: color-mix(in srgb, var(--paper) 78%, var(--accent-soft) 22%); box-shadow: none; }
+.archiveToggle small { color: var(--muted); font-weight: 600; }
+.projectCard.completed { border-left-color: var(--line); background: color-mix(in srgb, var(--paper) 88%, var(--accent-soft) 12%); box-shadow: none; }
+[data-theme="dark"] .projectBar { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 82%, #33473d 18%), color-mix(in srgb, var(--accent-soft) 60%, var(--paper) 40%)); border-color: #4c6b5e; }
+[data-theme="dark"] .projectBar.soon { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 72%, #80652b 28%), #5b4622); border-color: #9d7d34; }
+[data-theme="dark"] .projectBar.today { background: linear-gradient(135deg, #7b5d24, #a8792d); border-color: #d0a04a; color: #f8edd1; }
+[data-theme="dark"] .projectBar.overdue { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 68%, #7f3d42 32%), #653239); border-color: #a65f67; color: #f4dddd; }
+[data-theme="dark"] .newProjectButton, [data-theme="dark"] .secondaryProjectButton, [data-theme="dark"] .archiveToggle { background: color-mix(in srgb, var(--paper) 74%, var(--accent-soft) 26%); border-color: #4c6b5e; }
+[data-theme="dark"] .projectCard { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, var(--accent-soft) 26%, var(--paper) 74%)); }
+[data-theme="dark"] .projectCard.soon { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #7c6126 28%, var(--paper) 72%)); }
+[data-theme="dark"] .projectCard.today { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 74%, #7b5d24 26%), color-mix(in srgb, #9a742c 28%, var(--paper) 72%)); }
+[data-theme="dark"] .projectCard.overdue { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #7f3d42 30%, var(--paper) 70%)); }
+[data-theme="dark"] .projectCard.completed { background: color-mix(in srgb, var(--paper) 90%, var(--accent-soft) 10%); }
+[data-theme="dark"] .deadlinePill { background: color-mix(in srgb, var(--accent-soft) 58%, var(--paper) 42%); }
+[data-theme="dark"] .projectCard.soon .deadlinePill { background: #5f4a22; color: #f2ddb0; }
+[data-theme="dark"] .projectCard.today .deadlinePill { background: #a8792d; color: #fff1d1; }
+[data-theme="dark"] .projectCard.overdue .deadlinePill { background: #6f3a40; color: #f5dddd; }
+
+@media (min-width: 720px) {
+  .hero { grid-template-columns: minmax(220px, 1fr) minmax(280px, 560px) minmax(120px, 1fr); align-items: center; }
+  .heroActions { justify-self: end; }
+  .projectBar { width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .projectsHeaderRow, .projectsSectionHeader { align-items: flex-start; flex-direction: column; }
+  .projectsHeaderActions { width: 100%; justify-content: space-between; }
+  .newProjectButton { flex: 1; }
+  .archiveToggle { grid-template-columns: 1fr auto auto; }
+}
