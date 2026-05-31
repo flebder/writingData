@@ -1011,3 +1011,56 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
     height: auto;
   }
 }
+
+/* Cohesive active deadline status badge */
+.activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus {
+  gap: 4px;
+  background: color-mix(in srgb, var(--paper) 58%, #cfac52 42%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #8a6723 28%, transparent), 0 6px 14px rgba(31, 56, 42, 0.10);
+}
+.activeProjectsList .projectCard:not(.isEditing) .deadlinePill {
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent !important;
+  color: inherit;
+  box-shadow: none;
+}
+.activeProjectsList .projectCard:not(.isEditing) .statusDate {
+  color: color-mix(in srgb, currentColor 76%, var(--muted) 24%);
+  font-weight: 800;
+}
+.activeProjectsList .projectCard:not(.isEditing).future .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 58%, #cfe6d6 42%);
+  color: #234734;
+}
+.activeProjectsList .projectCard:not(.isEditing).approaching .projectStatus.completeStatus,
+.activeProjectsList .projectCard:not(.isEditing).soon .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 48%, #dfbf5a 52%);
+  color: #4f3712;
+}
+.activeProjectsList .projectCard:not(.isEditing).today .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 36%, #dca63a 64%);
+  color: #49320e;
+}
+.activeProjectsList .projectCard:not(.isEditing).overdue .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 48%, #d89594 52%);
+  color: #552d31;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).future .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 44%, #385141 56%);
+  color: #dcefe2;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).approaching .projectStatus.completeStatus,
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).soon .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 40%, #6f5522 60%);
+  color: #f5e8bf;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).today .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 34%, #8d6727 66%);
+  color: #fff1d1;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).overdue .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 38%, #653239 62%);
+  color: #f4dddd;
+}
