@@ -981,3 +981,33 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   }
   .activeProjectsList > .projectCard:only-child { width: 100%; }
 }
+
+/* Deadlines row-height and status-chip alignment tune */
+.activeProjectsList {
+  align-items: stretch;
+}
+.activeProjectsList > .projectCard {
+  align-self: stretch;
+  height: 100%;
+}
+.activeProjectsList .projectCard:not(.isEditing) {
+  grid-template-columns: minmax(0, 1fr) 116px;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus {
+  box-sizing: border-box;
+  width: 116px;
+  min-width: 116px;
+  max-width: 116px;
+  height: 68px;
+  min-height: 68px;
+  align-self: start;
+  justify-self: end;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+@media (max-width: 720px) {
+  .activeProjectsList > .projectCard {
+    height: auto;
+  }
+}
