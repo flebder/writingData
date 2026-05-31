@@ -906,3 +906,78 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   }
 }
 .day.hasDue, .mini.hasDue { position: relative; }
+
+/* Compact active deadline tile layout */
+.activeProjectsList {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+  width: 100%;
+  max-width: 940px;
+  margin-inline: auto;
+  align-items: start;
+}
+.activeProjectsList > .projectCard:only-child {
+  width: min(100%, 460px);
+  justify-self: center;
+}
+.activeProjectsList .projectCard:not(.isEditing) {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "main status"
+    "prompt prompt";
+  align-items: start;
+  gap: 10px 12px;
+  min-height: 0;
+  padding: 14px 14px 13px;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectMain {
+  grid-area: main;
+  display: grid;
+  gap: 3px;
+  padding-right: 2px;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectMain h3 {
+  margin-top: 0;
+  line-height: 1.12;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectInlineNotes {
+  margin-top: 8px;
+  max-width: none;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectNotes { display: none; }
+.activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus {
+  grid-area: status;
+  width: 112px;
+  min-width: 112px;
+  max-width: 112px;
+  min-height: 58px;
+  align-self: start;
+  justify-self: end;
+  align-content: center;
+  gap: 2px;
+  padding: 8px 9px;
+  border-radius: 17px;
+}
+.activeProjectsList .projectCard:not(.isEditing) .deadlinePill {
+  font-size: 12px;
+  line-height: 1.1;
+}
+.activeProjectsList .projectCard:not(.isEditing) .statusDate {
+  font-size: 10.5px;
+  line-height: 1.15;
+}
+.activeProjectsList .projectCard:not(.isEditing) .completeHint {
+  font-size: 10px;
+  line-height: 1.1;
+}
+.activeProjectsList .projectCard:not(.isEditing) .completionPrompt {
+  grid-area: prompt;
+}
+@media (max-width: 720px) {
+  .activeProjectsList {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+  .activeProjectsList > .projectCard:only-child { width: 100%; }
+}
