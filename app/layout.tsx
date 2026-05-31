@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Writing Analytics Dashboard",
+  title: "Writing Journal",
   description: "A polished writing analytics dashboard powered by Google Sheets"
 };
 
