@@ -416,3 +416,45 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   .projectBarName { max-width: 100%; }
   .addChoiceRow { grid-template-columns: 1fr; }
 }
+
+/* Deadline Compass interaction polish */
+.hero h1 { white-space: nowrap; }
+.projectBar { font-size: 15px; line-height: 1.15; font-weight: 500; background: color-mix(in srgb, var(--paper) 58%, var(--accent-soft) 42%); }
+.projectBarName { font-weight: 500; }
+.projectBarDate { white-space: nowrap; font-weight: 800; opacity: 1; }
+.projectBarSep { opacity: 0.58; }
+.projectBar.future { background: color-mix(in srgb, #d8eadf 72%, var(--paper) 28%); }
+.projectBar.approaching { background: color-mix(in srgb, #e9dfa6 72%, var(--paper) 28%); }
+.projectBar.soon { background: color-mix(in srgb, #f0d47c 78%, var(--paper) 22%); }
+.projectBar.today { background: color-mix(in srgb, #e3b64d 86%, var(--paper) 14%); }
+.projectBar.overdue { background: color-mix(in srgb, #d79a9a 76%, var(--paper) 24%); }
+.compactProjectsHeader { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.backLink { display: inline-flex; align-items: center; min-height: 40px; padding: 7px 12px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line) 76%); border-radius: 999px; background: color-mix(in srgb, var(--paper) 74%, var(--accent-soft) 26%); font-size: 18px; }
+.newProjectButton { display: inline-flex; align-items: center; justify-content: center; text-align: center; background: color-mix(in srgb, #dcefe2 70%, var(--paper) 30%); border-color: #91b99f; }
+.projectCard { cursor: pointer; grid-template-columns: minmax(210px, 1.15fr) minmax(160px, 0.85fr) auto; align-items: center; column-gap: 16px; }
+.projectCard.isEditing { cursor: default; align-items: start; }
+.projectMain h3 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 23px; }
+.projectNameInput { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+.projectNotes { color: var(--muted); font-size: 14px; line-height: 1.35; }
+.projectNotes p { margin: 0; }
+.projectNotes span { opacity: 0.72; font-style: italic; }
+.projectStatus { display: grid; justify-items: end; gap: 8px; }
+.completeButton { min-height: 30px; padding: 5px 11px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line) 62%); background: color-mix(in srgb, var(--paper) 70%, #dcefe2 30%); color: var(--accent); font-weight: 800; }
+.completeButton:hover, .completeButton:focus-visible { background: color-mix(in srgb, #dcefe2 72%, var(--paper) 28%); }
+[data-theme="dark"] .projectBar { background: color-mix(in srgb, var(--paper) 62%, var(--accent-soft) 38%); }
+[data-theme="dark"] .projectBar.future { background: color-mix(in srgb, #385141 58%, var(--paper) 42%); }
+[data-theme="dark"] .projectBar.approaching { background: color-mix(in srgb, #514925 58%, var(--paper) 42%); color: #f1e8c6; }
+[data-theme="dark"] .projectBar.soon { background: color-mix(in srgb, #5b4622 64%, var(--paper) 36%); }
+[data-theme="dark"] .projectBar.today { background: color-mix(in srgb, #a8792d 70%, var(--paper) 30%); color: #fff1d1; }
+[data-theme="dark"] .projectBar.overdue { background: color-mix(in srgb, #653239 68%, var(--paper) 32%); color: #f4dddd; }
+[data-theme="dark"] .backLink { background: color-mix(in srgb, var(--paper) 76%, var(--accent-soft) 24%); border-color: #4c6b5e; }
+[data-theme="dark"] .newProjectButton { background: color-mix(in srgb, #385141 42%, var(--paper) 58%); border-color: #5f8b70; }
+[data-theme="dark"] .completeButton { background: color-mix(in srgb, #385141 32%, var(--paper) 68%); border-color: #5f8b70; color: #dcefe2; }
+[data-theme="dark"] .completeButton:hover, [data-theme="dark"] .completeButton:focus-visible { background: color-mix(in srgb, #385141 48%, var(--paper) 52%); }
+@media (min-width: 720px) {
+  .hero { grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 560px) minmax(120px, 0.85fr); }
+}
+@media (max-width: 820px) {
+  .projectCard { grid-template-columns: 1fr; align-items: start; }
+  .projectStatus { justify-items: start; grid-auto-flow: column; align-items: center; justify-content: space-between; width: 100%; }
+}

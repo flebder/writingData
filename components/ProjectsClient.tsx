@@ -11,6 +11,7 @@ type ProjectsApiPayload = {
 };
 
 type EditMilestoneState = {
+  project_name: string;
   milestone_name: string;
   deadline_date: string;
   notes: string;
@@ -69,7 +70,7 @@ export default function ProjectsClient() {
   const [warning, setWarning] = useState<string | null>(null);
   const [configured, setConfigured] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [edit, setEdit] = useState<EditMilestoneState>({ milestone_name: "", deadline_date: "", notes: "" });
+  const [edit, setEdit] = useState<EditMilestoneState>({ project_name: "", milestone_name: "", deadline_date: "", notes: "" });
   const [manualAdjust, setManualAdjust] = useState<ManualAdjustState | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [addMode, setAddMode] = useState<AddMode>(null);
@@ -134,11 +135,14 @@ export default function ProjectsClient() {
 
   function startEdit(deadline: ProjectDeadline) {
     setEditingId(deadline.milestone.milestone_id);
-    setEdit({ milestone_name: deadline.milestone.milestone_name, deadline_date: deadline.milestone.deadline_date, notes: deadline.milestone.notes });
+    setEdit({ project_name: deadline.project.project_name, milestone_name: deadline.milestone.milestone_name, deadline_date: deadline.milestone.deadline_date, notes: deadline.milestone.notes });
   }
 
   async function saveEdit(deadline: ProjectDeadline) {
     const nextEvents: ProjectEvent[] = [];
+    if (edit.project_name !== deadline.project.project_name) {
+      nextEvents.push(createProjectEvent("update_project", deadline.project.project_id, undefined, { project_name: edit.project_name }));
+    }
     if (edit.milestone_name !== deadline.milestone.milestone_name || edit.notes !== deadline.milestone.notes) {
       nextEvents.push(createProjectEvent("update_milestone", deadline.project.project_id, deadline.milestone.milestone_id, { milestone_name: edit.milestone_name, notes: edit.notes }));
     }
@@ -206,14 +210,11 @@ export default function ProjectsClient() {
 
   return (
     <main className="journalShell projectsShell">
-      <header className="projectsHeader">
+      <header className="projectsHeader compactProjectsHeader">
         <a className="backLink" href="/">← Writing Journal</a>
-        <div className="projectsHeaderRow">
-          <h1>Deadline Compass</h1>
-          <div className="projectsHeaderActions">
-            <button className="newProjectButton" onClick={() => { setShowProjectForm((open) => !open); setAddMode(null); }}>{showProjectForm ? "Close" : "Add deadline"}</button>
-            <button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button>
-          </div>
+        <div className="projectsHeaderActions">
+          <button className="newProjectButton" onClick={() => { setShowProjectForm((open) => !open); setAddMode(null); }}>{showProjectForm ? "Close" : "Add deadline"}</button>
+          <button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button>
         </div>
       </header>
 
@@ -222,20 +223,21 @@ export default function ProjectsClient() {
 
       <section className="projectsList activeProjectsList">
         <div className="projectsSectionHeader">
-          <div>
-            <p className="eyebrow">Next promises</p>
-            <h2>Active deadlines</h2>
-          </div>
+          <h2>Deadline Compass</h2>
         </div>
         {loading ? <article className="panel projectCard projectCardFeature">Loading project deadlines…</article> : state.activeDeadlines.length ? state.activeDeadlines.map((deadline, index) => {
           const later = laterMilestones(deadline, state.milestones);
           const isEditing = editingId === deadline.milestone.milestone_id;
-          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${projectUiUrgency(deadline)}`}>
-            <div className="projectCardTop"><div><p className="eyebrow">{deadline.project.project_name}{deadline.project.project_type ? ` · ${deadline.project.project_type}` : ""}</p>{isEditing ? <input className="projectTitleInput" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}</div><strong className="deadlinePill">{dueCopy(deadline)}</strong></div>
-            <div className="projectMeta">Due {isEditing ? <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /> : formatDeadline(deadline.milestone.deadline_date)}</div>
-            {isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : null}
-            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox"><p>Adjust upcoming deadlines?</p><button onClick={() => complete(deadline, "auto")} disabled={saving}>Auto-adjust by completion offset</button><button onClick={() => complete(deadline, "none")} disabled={saving}>Do not adjust</button>{later.map((milestone) => <label key={milestone.milestone_id}>{milestone.milestone_name}<input type="date" value={manualAdjust.dates[milestone.milestone_id]} onChange={(e) => setManualAdjust({ completing: deadline, dates: { ...manualAdjust.dates, [milestone.milestone_id]: e.target.value } })} /></label>)}<button onClick={() => complete(deadline, "none", manualAdjust.dates)} disabled={saving}>Save manual dates</button></div>}
-            <div className="projectActions">{isEditing ? <><button onClick={() => saveEdit(deadline)} disabled={saving}>Save changes</button><button onClick={() => setEditingId(null)}>Cancel</button></> : <><button onClick={() => startEdit(deadline)}>Edit</button><button onClick={() => later.length ? setManualAdjust({ completing: deadline, dates: Object.fromEntries(later.map((m) => [m.milestone_id, m.deadline_date])) }) : complete(deadline, "none")} disabled={saving}>Mark complete</button></>}</div>
+          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${projectUiUrgency(deadline)} ${isEditing ? "isEditing" : ""}`} onClick={() => !isEditing && startEdit(deadline)}>
+            <div className="projectMain" onClick={(e) => isEditing && e.stopPropagation()}>
+              {isEditing ? <input className="projectNameInput" aria-label="Project name" value={edit.project_name} onChange={(e) => setEdit({ ...edit, project_name: e.target.value })} /> : <p className="eyebrow">{deadline.project.project_name}{deadline.project.project_type ? ` · ${deadline.project.project_type}` : ""}</p>}
+              {isEditing ? <input className="projectTitleInput" aria-label="Milestone name" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}
+              <div className="projectMeta">Due {isEditing ? <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /> : formatDeadline(deadline.milestone.deadline_date)}</div>
+            </div>
+            <div className="projectNotes" onClick={(e) => isEditing && e.stopPropagation()}>{isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : <span>Click card to edit details</span>}</div>
+            <div className="projectStatus"><strong className="deadlinePill">{dueCopy(deadline)}</strong>{!isEditing && <button className="completeButton" onClick={(e) => { e.stopPropagation(); later.length ? setManualAdjust({ completing: deadline, dates: Object.fromEntries(later.map((m) => [m.milestone_id, m.deadline_date])) }) : complete(deadline, "none"); }} disabled={saving}>✓ Complete</button>}</div>
+            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox" onClick={(e) => e.stopPropagation()}><p>Adjust upcoming deadlines?</p><button onClick={() => complete(deadline, "auto")} disabled={saving}>Auto-adjust by completion offset</button><button onClick={() => complete(deadline, "none")} disabled={saving}>Do not adjust</button>{later.map((milestone) => <label key={milestone.milestone_id}>{milestone.milestone_name}<input type="date" value={manualAdjust.dates[milestone.milestone_id]} onChange={(e) => setManualAdjust({ completing: deadline, dates: { ...manualAdjust.dates, [milestone.milestone_id]: e.target.value } })} /></label>)}<button onClick={() => complete(deadline, "none", manualAdjust.dates)} disabled={saving}>Save manual dates</button></div>}
+            {isEditing && <div className="projectActions" onClick={(e) => e.stopPropagation()}><button onClick={() => saveEdit(deadline)} disabled={saving}>Save changes</button><button onClick={() => setEditingId(null)}>Cancel</button></div>}
           </article>;
         }) : <article className="panel projectCard projectCardFeature emptyProject">No active project deadline</article>}
       </section>
