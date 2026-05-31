@@ -19,7 +19,6 @@ type EditMilestoneState = {
 
 type ManualAdjustState = {
   completing: ProjectDeadline;
-  dates: Record<string, string>;
 };
 type AddMode = "project" | "milestone" | null;
 
@@ -234,9 +233,9 @@ export default function ProjectsClient() {
               {isEditing ? <input className="projectTitleInput" aria-label="Milestone name" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}
               <div className="projectMeta">Due {isEditing ? <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /> : formatDeadline(deadline.milestone.deadline_date)}</div>
             </div>
-            <div className="projectNotes" onClick={(e) => isEditing && e.stopPropagation()}>{isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : <span>Click card to edit details</span>}</div>
-            <div className="projectStatus"><strong className="deadlinePill">{dueCopy(deadline)}</strong>{!isEditing && <button className="completeButton" onClick={(e) => { e.stopPropagation(); later.length ? setManualAdjust({ completing: deadline, dates: Object.fromEntries(later.map((m) => [m.milestone_id, m.deadline_date])) }) : complete(deadline, "none"); }} disabled={saving}>✓ Complete</button>}</div>
-            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox" onClick={(e) => e.stopPropagation()}><p>Adjust upcoming deadlines?</p><button onClick={() => complete(deadline, "auto")} disabled={saving}>Auto-adjust by completion offset</button><button onClick={() => complete(deadline, "none")} disabled={saving}>Do not adjust</button>{later.map((milestone) => <label key={milestone.milestone_id}>{milestone.milestone_name}<input type="date" value={manualAdjust.dates[milestone.milestone_id]} onChange={(e) => setManualAdjust({ completing: deadline, dates: { ...manualAdjust.dates, [milestone.milestone_id]: e.target.value } })} /></label>)}<button onClick={() => complete(deadline, "none", manualAdjust.dates)} disabled={saving}>Save manual dates</button></div>}
+            <div className="projectNotes" onClick={(e) => isEditing && e.stopPropagation()}>{isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : null}</div>
+            <div className="projectStatus"><strong className="deadlinePill">{dueCopy(deadline)}</strong>{!isEditing && <button className="completeCheck" aria-label="Mark complete" onClick={(e) => { e.stopPropagation(); later.length ? setManualAdjust({ completing: deadline }) : complete(deadline, "none"); }} disabled={saving}><span aria-hidden="true">✓</span></button>}</div>
+            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox" onClick={(e) => e.stopPropagation()}><p>Auto-adjust upcoming deadlines?</p><button onClick={() => complete(deadline, "auto")} disabled={saving}>Yes</button><button onClick={() => complete(deadline, "none")} disabled={saving}>No</button></div>}
             {isEditing && <div className="projectActions" onClick={(e) => e.stopPropagation()}><button onClick={() => saveEdit(deadline)} disabled={saving}>Save changes</button><button onClick={() => setEditingId(null)}>Cancel</button></div>}
           </article>;
         }) : <article className="panel projectCard projectCardFeature emptyProject">No active project deadline</article>}

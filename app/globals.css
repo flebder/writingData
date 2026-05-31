@@ -458,3 +458,37 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   .projectCard { grid-template-columns: 1fr; align-items: start; }
   .projectStatus { justify-items: start; grid-auto-flow: column; align-items: center; justify-content: space-between; width: 100%; }
 }
+
+/* Projects cleanup pass */
+.projectBar { justify-self: center; width: auto; max-width: min(500px, 100%); min-height: 36px; padding: 7px 13px; font-size: 15.5px; box-shadow: 0 8px 18px rgba(31, 56, 42, 0.10); }
+.projectBar strong, .projectBarDate { font-weight: 800; }
+.projectBarDate { opacity: 1; }
+.streakGrid { gap: 8px; }
+.streakCard { min-height: 98px; padding: 10px 12px; row-gap: 2px; }
+.streakCard h3 { font-size: 10.5px; }
+.streakCard p { margin: 1px 0 0; font-size: 22px; line-height: 1.08; }
+.streakCard small { margin-top: 0; line-height: 1.25; }
+.newProjectButton { outline: none; box-shadow: 0 6px 14px rgba(31, 56, 42, 0.10); background: color-mix(in srgb, var(--paper) 58%, #d8eadf 42%); border-color: #a8c7b3; color: var(--ink); }
+.newProjectButton:hover, .newProjectButton:focus-visible { background: color-mix(in srgb, var(--paper) 44%, #d8eadf 56%); box-shadow: 0 0 0 2px color-mix(in srgb, #d8eadf 72%, transparent); }
+.backLink { box-shadow: 0 6px 14px rgba(31, 56, 42, 0.08); }
+.projectCard.isEditing { grid-template-columns: 1fr; gap: 10px; }
+.projectCard.isEditing .projectMain { display: grid; gap: 8px; }
+.projectCard.isEditing .projectNotes textarea { min-height: 80px; }
+.projectNameInput, .projectTitleInput, .projectNotes textarea, .projectMeta input { box-sizing: border-box; max-width: 100%; }
+.projectNotes:empty { display: none; }
+.projectStatus { align-self: stretch; align-content: center; }
+.completeButton { display: none; }
+.completeCheck { width: 34px; height: 34px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--accent) 44%, var(--line) 56%); background: color-mix(in srgb, var(--paper) 78%, transparent); color: transparent; display: inline-flex; align-items: center; justify-content: center; padding: 0; transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, border-color 0.15s ease; }
+.completeCheck:hover, .completeCheck:focus-visible { background: color-mix(in srgb, #d8eadf 76%, var(--paper) 24%); border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.rolloverBox { grid-column: 1 / -1; gap: 8px; }
+.rolloverBox button { min-width: 70px; }
+.projectCard.completed { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 14px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--line) 82%, var(--accent-soft) 18%); border-left: 3px solid color-mix(in srgb, var(--line) 72%, var(--accent) 28%); background: color-mix(in srgb, var(--paper) 72%, var(--accent-soft) 28%); opacity: 0.9; }
+.projectCard.completed h3 { margin: 0; font-size: 18px; }
+.projectCard.completed p:last-child { margin: 0; color: var(--muted); font-size: 13px; text-align: right; }
+[data-theme="dark"] .newProjectButton { background: color-mix(in srgb, var(--paper) 68%, #385141 32%); border-color: #587a66; color: var(--ink); }
+[data-theme="dark"] .newProjectButton:hover, [data-theme="dark"] .newProjectButton:focus-visible { background: color-mix(in srgb, var(--paper) 54%, #385141 46%); box-shadow: 0 0 0 2px rgba(95, 139, 112, 0.24); }
+[data-theme="dark"] .completeCheck { background: color-mix(in srgb, var(--paper) 82%, transparent); border-color: #5f8b70; }
+[data-theme="dark"] .completeCheck:hover, [data-theme="dark"] .completeCheck:focus-visible { background: color-mix(in srgb, #385141 68%, var(--paper) 32%); color: #dcefe2; }
+[data-theme="dark"] .projectCard.completed { background: color-mix(in srgb, var(--paper) 82%, var(--accent-soft) 18%); border-color: #34453d; }
+@media (min-width: 720px) { .hero { grid-template-columns: minmax(280px, max-content) minmax(260px, 500px) minmax(120px, 1fr); } }
+@media (max-width: 560px) { .projectBar { padding-inline: 11px; } .projectCard.completed { grid-template-columns: 1fr; } .projectCard.completed p:last-child { text-align: left; } }
