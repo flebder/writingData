@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createProjectEvent, localProjectToday, offsetYmd, reduceProjectEvents, daysBetweenYmd, type Milestone, type Project, type ProjectDeadline, type ProjectEvent } from "@/lib/projects";
+import { aggregateDays, type WritingSession } from "@/lib/writing";
 
 type ProjectsApiPayload = {
   ok: boolean;
   configured: boolean;
   events: ProjectEvent[];
   warning?: string;
+};
+
+type SessionsApiPayload = {
+  sessions?: WritingSession[];
 };
 
 type EditMilestoneState = {
@@ -74,6 +79,8 @@ export default function ProjectsClient() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [addMode, setAddMode] = useState<AddMode>(null);
   const [showArchive, setShowArchive] = useState(false);
+  const [todayMinutes, setTodayMinutes] = useState(0);
+  const [completionHoverId, setCompletionHoverId] = useState<string | null>(null);
   const [newProject, setNewProject] = useState({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
   const [newMilestone, setNewMilestone] = useState({ project_id: "", milestone_name: "", deadline_date: localProjectToday(), notes: "" });
 
@@ -90,6 +97,22 @@ export default function ProjectsClient() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("wj-theme", theme);
   }, [theme, themeReady]);
+
+
+  useEffect(() => {
+    fetch("/api/sessions", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return (await response.json()) as SessionsApiPayload;
+      })
+      .then((data) => {
+        const sessions = data?.sessions || [];
+        const today = localProjectToday();
+        const days = aggregateDays(sessions, "UTC");
+        setTodayMinutes(days[today]?.minutes || 0);
+      })
+      .catch(() => setTodayMinutes(0));
+  }, []);
 
   useEffect(() => {
     fetch("/api/projects", { cache: "no-store" })
@@ -207,10 +230,19 @@ export default function ProjectsClient() {
     if (saved) setManualAdjust(null);
   }
 
+  function todayBubbleText() {
+    const today = localProjectToday();
+    const [year, month, date] = today.split("-").map(Number);
+    const label = new Date(Date.UTC(year, month - 1, date, 12)).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+    const unit = todayMinutes === 1 ? "minute" : "minutes";
+    return `${todayMinutes} ${unit} today · ${label}`;
+  }
+
   return (
     <main className="journalShell projectsShell">
-      <header className="projectsHeader compactProjectsHeader">
-        <a className="backLink" href="/">← Writing Journal</a>
+      <header className="projectsHeader compactProjectsHeader deadlinesHeader">
+        <h1>Deadlines</h1>
+        <a className="journalTodayBubble" href="/">{todayBubbleText()}</a>
         <div className="projectsHeaderActions">
           <button className="newProjectButton" onClick={() => { setShowProjectForm((open) => !open); setAddMode(null); }}>{showProjectForm ? "Close" : "Add deadline"}</button>
           <button className="themeToggle" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">{theme === "light" ? "☀️" : "🌙"}</button>
@@ -227,15 +259,22 @@ export default function ProjectsClient() {
         {loading ? <article className="panel projectCard projectCardFeature">Loading project deadlines…</article> : state.activeDeadlines.length ? state.activeDeadlines.map((deadline, index) => {
           const later = laterMilestones(deadline, state.milestones);
           const isEditing = editingId === deadline.milestone.milestone_id;
-          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${projectUiUrgency(deadline)} ${isEditing ? "isEditing" : ""}`} onClick={() => !isEditing && startEdit(deadline)}>
+          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${projectUiUrgency(deadline)} ${isEditing ? "isEditing" : ""} ${completionHoverId === deadline.milestone.milestone_id ? "completionPreview" : ""}`} onClick={() => !isEditing && startEdit(deadline)}>
             <div className="projectMain" onClick={(e) => isEditing && e.stopPropagation()}>
               {isEditing ? <input className="projectNameInput" aria-label="Project name" value={edit.project_name} onChange={(e) => setEdit({ ...edit, project_name: e.target.value })} /> : <p className="eyebrow">{deadline.project.project_name}{deadline.project.project_type ? ` · ${deadline.project.project_type}` : ""}</p>}
               {isEditing ? <input className="projectTitleInput" aria-label="Milestone name" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}
-              <div className="projectMeta">Due {isEditing ? <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /> : formatDeadline(deadline.milestone.deadline_date)}</div>
+              {isEditing && <div className="projectMeta">Due <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /></div>}
             </div>
             <div className="projectNotes" onClick={(e) => isEditing && e.stopPropagation()}>{isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : null}</div>
-            <div className="projectStatus"><strong className="deadlinePill">{dueCopy(deadline)}</strong>{!isEditing && <button className="completeCheck" aria-label="Mark complete" onClick={(e) => { e.stopPropagation(); later.length ? setManualAdjust({ completing: deadline }) : complete(deadline, "none"); }} disabled={saving}><span aria-hidden="true">✓</span></button>}</div>
-            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox" onClick={(e) => e.stopPropagation()}><p>Auto-adjust upcoming deadlines?</p><button onClick={() => complete(deadline, "auto")} disabled={saving}>Yes</button><button onClick={() => complete(deadline, "none")} disabled={saving}>No</button></div>}
+            {!isEditing && <button className="projectStatus completeStatus" aria-label={`Mark ${deadline.milestone.milestone_name} complete`} onClick={(e) => { e.stopPropagation(); setManualAdjust({ completing: deadline }); }} onMouseEnter={() => setCompletionHoverId(deadline.milestone.milestone_id)} onMouseLeave={() => setCompletionHoverId(null)} onFocus={() => setCompletionHoverId(deadline.milestone.milestone_id)} onBlur={() => setCompletionHoverId(null)} disabled={saving}>
+              <strong className="deadlinePill">{dueCopy(deadline)}</strong>
+              <span className="statusDate">{formatDeadline(deadline.milestone.deadline_date)}</span>
+              <span className="completeHint">Mark done</span>
+            </button>}
+            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox completionPrompt" onClick={(e) => e.stopPropagation()}>
+              <p>{later.length ? "Auto-adjust upcoming deadlines?" : "Complete this milestone?"}</p>
+              {later.length ? <><button onClick={() => complete(deadline, "auto")} disabled={saving}>Yes</button><button onClick={() => complete(deadline, "none")} disabled={saving}>No</button><button onClick={() => setManualAdjust(null)} disabled={saving}>Cancel</button></> : <><button onClick={() => complete(deadline, "none")} disabled={saving}>Yes</button><button onClick={() => setManualAdjust(null)} disabled={saving}>Cancel</button></>}
+            </div>}
             {isEditing && <div className="projectActions" onClick={(e) => e.stopPropagation()}><button onClick={() => saveEdit(deadline)} disabled={saving}>Save changes</button><button onClick={() => setEditingId(null)}>Cancel</button></div>}
           </article>;
         }) : <article className="panel projectCard projectCardFeature emptyProject">No active project deadline</article>}
@@ -269,7 +308,7 @@ export default function ProjectsClient() {
 
       <section className="projectsList completedProjects">
         <button className="archiveToggle" onClick={() => setShowArchive((open) => !open)} aria-expanded={showArchive}>
-          <span>Archive</span><small>{state.completedMilestones.length} completed</small><span>{showArchive ? "−" : "+"}</span>
+          Archive {showArchive ? "−" : "+"}
         </button>
         {showArchive && (state.completedMilestones.length ? state.completedMilestones.map((deadline) => <article key={deadline.milestone.milestone_id} className="panel projectCard completed"><div><p className="eyebrow">{deadline.project.project_name}</p><h3>{deadline.milestone.milestone_name}</h3></div><p>Completed {deadline.milestone.completed_at || "recently"} · due {formatDeadline(deadline.milestone.deadline_date)}</p></article>) : <article className="panel projectCard emptyProject">Completed milestones will collect here.</article>)}
       </section>

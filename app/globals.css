@@ -492,3 +492,205 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 [data-theme="dark"] .projectCard.completed { background: color-mix(in srgb, var(--paper) 82%, var(--accent-soft) 18%); border-color: #34453d; }
 @media (min-width: 720px) { .hero { grid-template-columns: minmax(280px, max-content) minmax(260px, 500px) minmax(120px, 1fr); } }
 @media (max-width: 560px) { .projectBar { padding-inline: 11px; } .projectCard.completed { grid-template-columns: 1fr; } .projectCard.completed p:last-child { text-align: left; } }
+
+/* Deadline Compass correction pass */
+.hero h1 { white-space: nowrap; min-width: max-content; }
+.projectBar {
+  width: auto;
+  max-width: min(460px, 100%);
+  min-height: 34px;
+  padding: 7px 12px;
+  gap: 6px;
+  font-size: 15px;
+  line-height: 1.15;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, var(--accent) 30%);
+  background: color-mix(in srgb, var(--paper) 56%, var(--accent-soft) 44%);
+  background-image: none !important;
+}
+.projectBarName { font-weight: 500; }
+.projectBarSep { opacity: 0.55; font-weight: 500; }
+.projectBar strong, .projectBarDate { font-weight: 800; }
+.projectBar.future { background: color-mix(in srgb, #d9eadf 74%, var(--paper) 26%); border-color: #9bbda8; }
+.projectBar.approaching { background: color-mix(in srgb, #e7dda2 72%, var(--paper) 28%); border-color: #c0ac5e; color: #4f4518; }
+.projectBar.soon { background: color-mix(in srgb, #edd17a 76%, var(--paper) 24%); border-color: #c49a3e; color: #503b12; }
+.projectBar.today { background: color-mix(in srgb, #e4b449 84%, var(--paper) 16%); border-color: #b88022; color: #49320e; }
+.projectBar.overdue { background: color-mix(in srgb, #d89594 70%, var(--paper) 30%); border-color: #b96a70; color: #552d31; }
+
+.deadlinesHeader {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(240px, auto) minmax(170px, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+.deadlinesHeader h1 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: clamp(32px, 5vw, 56px);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.journalTodayBubble {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, var(--accent) 28%);
+  background: color-mix(in srgb, var(--paper) 58%, var(--accent-soft) 42%);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.10);
+}
+.deadlinesHeader .projectsHeaderActions { justify-self: end; }
+
+.newProjectButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0 !important;
+  outline: none;
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.14);
+  background: color-mix(in srgb, #d9eadf 64%, var(--paper) 36%);
+  color: var(--accent);
+  text-align: center;
+}
+.newProjectButton:hover, .newProjectButton:focus-visible {
+  background: color-mix(in srgb, #d9eadf 78%, var(--paper) 22%);
+  box-shadow: 0 10px 22px rgba(31, 56, 42, 0.18);
+}
+
+.projectCard {
+  grid-template-columns: minmax(220px, 1.15fr) minmax(180px, 0.85fr) minmax(142px, auto);
+  align-items: center;
+  gap: 14px;
+  background-image: none !important;
+  border-left: 4px solid color-mix(in srgb, var(--accent) 34%, var(--line) 66%);
+}
+.projectCard.future { background: color-mix(in srgb, #e0efe5 70%, var(--paper) 30%); border-left-color: #8fb79c; }
+.projectCard.approaching { background: color-mix(in srgb, #eee6b8 70%, var(--paper) 30%); border-left-color: #b8a455; }
+.projectCard.soon { background: color-mix(in srgb, #f2dda0 74%, var(--paper) 26%); border-left-color: #c59a3d; }
+.projectCard.today { background: color-mix(in srgb, #edcc75 78%, var(--paper) 22%); border-left-color: #b88022; }
+.projectCard.overdue { background: color-mix(in srgb, #e0aaa8 72%, var(--paper) 28%); border-left-color: #b96a70; }
+.projectCard .projectMain h3, .projectCard .projectNotes p { transition: text-decoration-color 0.16s ease, opacity 0.16s ease; }
+.projectCard.completionPreview .projectMain h3,
+.projectCard.completionPreview .projectNotes p { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: color-mix(in srgb, var(--accent) 56%, transparent); opacity: 0.72; }
+.projectNotes { align-self: center; color: color-mix(in srgb, var(--ink) 72%, var(--muted) 28%); }
+.projectStatus.completeStatus {
+  justify-self: end;
+  align-self: stretch;
+  min-width: 142px;
+  display: grid;
+  justify-items: end;
+  align-content: center;
+  gap: 3px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--paper) 62%, transparent);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 78%, transparent);
+  cursor: pointer;
+  text-align: right;
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+.projectStatus.completeStatus:hover, .projectStatus.completeStatus:focus-visible {
+  background: color-mix(in srgb, #d9eadf 64%, var(--paper) 36%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent), 0 8px 16px rgba(31, 56, 42, 0.12);
+  transform: translateY(-1px);
+}
+.statusDate { font-size: 12px; color: var(--muted); font-weight: 700; }
+.completeHint { font-size: 11px; color: var(--accent); font-weight: 800; opacity: 0; transform: translateY(-2px); transition: opacity 0.16s ease, transform 0.16s ease; }
+.completeStatus:hover .completeHint, .completeStatus:focus-visible .completeHint { opacity: 1; transform: translateY(0); }
+.completionPrompt { justify-content: center; align-items: center; text-align: center; }
+.completionPrompt p { flex-basis: 100%; margin: 0 0 2px; }
+.completionPrompt button { border-radius: 999px; }
+.completeCheck, .completeButton { display: none !important; }
+
+.archiveToggle {
+  width: auto;
+  justify-self: center;
+  margin-inline: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 64%, var(--accent-soft) 36%);
+  color: var(--accent);
+  box-shadow: 0 6px 14px rgba(31, 56, 42, 0.10);
+  font-weight: 800;
+}
+.projectCard.completed {
+  background: color-mix(in srgb, var(--paper) 66%, var(--accent-soft) 34%);
+  border-left-color: color-mix(in srgb, var(--accent) 22%, var(--line) 78%);
+  opacity: 0.92;
+}
+
+.day.hasDue .dueMarker, .mini.hasDue .dueMarker {
+  position: absolute;
+  width: 9px;
+  height: 12px;
+  right: 4px;
+  bottom: 4px;
+  border-radius: 2px 2px 1px 1px;
+  background: #c8942f;
+  box-shadow: 0 0 0 1px rgba(255, 250, 236, 0.72), 0 1px 3px rgba(65, 43, 10, 0.22);
+  color: transparent;
+  font-size: 0;
+}
+.day.hasDue .dueMarker::after, .mini.hasDue .dueMarker::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  border-top: 4px solid #c8942f;
+  border-right: 5px solid transparent;
+}
+.day.due-today .dueMarker, .mini.due-today .dueMarker { background: #d99b24; }
+.day.due-today .dueMarker::after, .mini.due-today .dueMarker::after { border-top-color: #d99b24; }
+.day.due-overdue .dueMarker, .mini.due-overdue .dueMarker { background: #b85f61; }
+.day.due-overdue .dueMarker::after, .mini.due-overdue .dueMarker::after { border-top-color: #b85f61; }
+.mini.hasDue .dueMarker { width: 6px; height: 8px; right: 1px; bottom: 1px; }
+.mini.hasDue .dueMarker::after { bottom: -3px; border-top-width: 3px; border-right-width: 4px; }
+.dayDeadlineList { margin: 4px 0 8px; }
+.dayDeadlineList ul { margin: 0; padding-left: 18px; }
+.dayDeadlineList li { color: var(--accent); font-weight: 700; }
+
+[data-theme="dark"] .projectBar { background: color-mix(in srgb, var(--paper) 58%, var(--accent-soft) 42%); border-color: #4c6b5e; }
+[data-theme="dark"] .projectBar.future { background: color-mix(in srgb, #385141 60%, var(--paper) 40%); border-color: #5f8b70; }
+[data-theme="dark"] .projectBar.approaching { background: color-mix(in srgb, #514925 62%, var(--paper) 38%); border-color: #92823d; color: #f1e8c6; }
+[data-theme="dark"] .projectBar.soon { background: color-mix(in srgb, #5b4622 66%, var(--paper) 34%); border-color: #a57f35; color: #f5e8bf; }
+[data-theme="dark"] .projectBar.today { background: color-mix(in srgb, #8d6727 76%, var(--paper) 24%); border-color: #d0a04a; color: #fff1d1; }
+[data-theme="dark"] .projectBar.overdue { background: color-mix(in srgb, #653239 70%, var(--paper) 30%); border-color: #a65f67; color: #f4dddd; }
+[data-theme="dark"] .journalTodayBubble { background: color-mix(in srgb, var(--paper) 64%, var(--accent-soft) 36%); border-color: #4c6b5e; color: var(--ink); }
+[data-theme="dark"] .newProjectButton { background: color-mix(in srgb, #385141 48%, var(--paper) 52%); color: var(--ink); }
+[data-theme="dark"] .newProjectButton:hover, [data-theme="dark"] .newProjectButton:focus-visible { background: color-mix(in srgb, #385141 64%, var(--paper) 36%); }
+[data-theme="dark"] .projectCard.future { background: color-mix(in srgb, #385141 46%, var(--paper) 54%); border-left-color: #5f8b70; }
+[data-theme="dark"] .projectCard.approaching { background: color-mix(in srgb, #514925 48%, var(--paper) 52%); border-left-color: #92823d; }
+[data-theme="dark"] .projectCard.soon { background: color-mix(in srgb, #5b4622 54%, var(--paper) 46%); border-left-color: #a57f35; }
+[data-theme="dark"] .projectCard.today { background: color-mix(in srgb, #8d6727 62%, var(--paper) 38%); border-left-color: #d0a04a; }
+[data-theme="dark"] .projectCard.overdue { background: color-mix(in srgb, #653239 58%, var(--paper) 42%); border-left-color: #a65f67; }
+[data-theme="dark"] .projectStatus.completeStatus { background: rgba(255, 247, 224, 0.04); box-shadow: inset 0 0 0 1px rgba(232, 222, 200, 0.12); }
+[data-theme="dark"] .projectStatus.completeStatus:hover, [data-theme="dark"] .projectStatus.completeStatus:focus-visible { background: color-mix(in srgb, #385141 56%, var(--paper) 44%); box-shadow: inset 0 0 0 1px rgba(146, 184, 157, 0.34), 0 10px 20px rgba(0, 0, 0, 0.22); }
+[data-theme="dark"] .archiveToggle { background: color-mix(in srgb, var(--paper) 72%, var(--accent-soft) 28%); color: var(--ink); }
+[data-theme="dark"] .projectCard.completed { background: color-mix(in srgb, var(--paper) 76%, var(--accent-soft) 24%); }
+[data-theme="dark"] .day.hasDue .dueMarker, [data-theme="dark"] .mini.hasDue .dueMarker { box-shadow: 0 0 0 1px rgba(12, 18, 15, 0.92), 0 1px 4px rgba(0, 0, 0, 0.34); }
+
+@media (min-width: 720px) {
+  .hero { grid-template-columns: minmax(250px, max-content) minmax(240px, 460px) minmax(120px, 1fr); }
+}
+@media (max-width: 820px) {
+  .deadlinesHeader { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .deadlinesHeader .projectsHeaderActions { justify-self: center; }
+  .projectCard { grid-template-columns: 1fr; align-items: stretch; }
+  .projectStatus.completeStatus { justify-self: stretch; justify-items: start; text-align: left; min-width: 0; }
+}
+@media (max-width: 560px) {
+  .hero h1 { min-width: 0; }
+  .projectBar { max-width: 100%; font-size: 14px; padding-inline: 10px; }
+}
