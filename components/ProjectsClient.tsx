@@ -81,6 +81,7 @@ export default function ProjectsClient() {
   const [showArchive, setShowArchive] = useState(false);
   const [todayMinutes, setTodayMinutes] = useState(0);
   const [completionHoverId, setCompletionHoverId] = useState<string | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<ProjectDeadline | null>(null);
   const [newProject, setNewProject] = useState({ project_name: "", project_type: "", notes: "", milestone_name: "", deadline_date: localProjectToday() });
   const [newMilestone, setNewMilestone] = useState({ project_id: "", milestone_name: "", deadline_date: localProjectToday(), notes: "" });
 
@@ -230,6 +231,21 @@ export default function ProjectsClient() {
     if (saved) setManualAdjust(null);
   }
 
+  function formatArchiveDate(day?: string) {
+    return day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? formatDeadline(day) : "recently";
+  }
+
+  async function restoreMilestone(deadline: ProjectDeadline) {
+    const nextEvents = [
+      createProjectEvent("update_milestone", deadline.project.project_id, deadline.milestone.milestone_id, { status: "active", completed_at: "" })
+    ];
+    if (deadline.project.status !== "active") {
+      nextEvents.push(createProjectEvent("update_project", deadline.project.project_id, undefined, { status: "active" }));
+    }
+    const saved = await appendEvents(nextEvents);
+    if (saved) setRestoreTarget(null);
+  }
+
   function todayBubbleText() {
     const today = localProjectToday();
     const [year, month, date] = today.split("-").map(Number);
@@ -245,7 +261,7 @@ export default function ProjectsClient() {
   }
 
   return (
-    <main className="journalShell projectsShell" onClick={() => setManualAdjust(null)}>
+    <main className="journalShell projectsShell" onClick={() => { setManualAdjust(null); setRestoreTarget(null); }}>
       <header className="projectsHeader compactProjectsHeader deadlinesHeader" onClick={(e) => e.stopPropagation()}>
         <h1>Deadlines</h1>
         <a className={`journalTodayBubble ${todayBubbleStatus()}`} href="/">{todayBubbleText()}</a>
@@ -292,9 +308,10 @@ export default function ProjectsClient() {
             <div className="projectMain" onClick={(e) => isEditing && e.stopPropagation()}>
               {isEditing ? <input className="projectNameInput" aria-label="Project name" value={edit.project_name} onChange={(e) => setEdit({ ...edit, project_name: e.target.value })} /> : <p className="eyebrow">{deadline.project.project_name}{deadline.project.project_type ? ` · ${deadline.project.project_type}` : ""}</p>}
               {isEditing ? <input className="projectTitleInput" aria-label="Milestone name" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}
+              {!isEditing && deadline.milestone.notes ? <p className="projectInlineNotes">{deadline.milestone.notes}</p> : null}
               {isEditing && <div className="projectMeta">Due <input type="date" value={edit.deadline_date} onChange={(e) => setEdit({ ...edit, deadline_date: e.target.value })} /></div>}
             </div>
-            <div className="projectNotes" onClick={(e) => isEditing && e.stopPropagation()}>{isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : deadline.milestone.notes ? <p>{deadline.milestone.notes}</p> : null}</div>
+            <div className="projectNotes" onClick={(e) => isEditing && e.stopPropagation()}>{isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : null}</div>
             {!isEditing && <button className="projectStatus completeStatus" aria-label={`Mark ${deadline.milestone.milestone_name} complete`} onClick={(e) => { e.stopPropagation(); setManualAdjust((current) => current?.completing.milestone.milestone_id === deadline.milestone.milestone_id ? null : { completing: deadline }); }} onMouseEnter={() => setCompletionHoverId(deadline.milestone.milestone_id)} onMouseLeave={() => setCompletionHoverId(null)} onFocus={() => setCompletionHoverId(deadline.milestone.milestone_id)} onBlur={() => setCompletionHoverId(null)} disabled={saving}>
               <strong className="deadlinePill">{dueCopy(deadline)}</strong>
               <span className="statusDate">{formatDeadline(deadline.milestone.deadline_date)}</span>
@@ -315,8 +332,10 @@ export default function ProjectsClient() {
         <button className="archiveToggle" onClick={() => setShowArchive((open) => !open)} aria-expanded={showArchive}>
           Archive {showArchive ? "−" : "+"}
         </button>
-        {showArchive && (state.completedMilestones.length ? state.completedMilestones.map((deadline) => <article key={deadline.milestone.milestone_id} className="panel projectCard completed"><div><p className="eyebrow">{deadline.project.project_name}</p><h3>{deadline.milestone.milestone_name}</h3></div><p>Completed {deadline.milestone.completed_at || "recently"} · due {formatDeadline(deadline.milestone.deadline_date)}</p></article>) : <article className="panel projectCard emptyProject">Completed milestones will collect here.</article>)}
+        {showArchive && (state.completedMilestones.length ? state.completedMilestones.map((deadline) => <article key={deadline.milestone.milestone_id} className="panel projectCard completed" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setRestoreTarget(deadline); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setRestoreTarget(deadline); }}><div><p className="eyebrow">{deadline.project.project_name}</p><h3>{deadline.milestone.milestone_name}</h3></div><p>Completed {formatArchiveDate(deadline.milestone.completed_at)} · due {formatDeadline(deadline.milestone.deadline_date)}</p></article>) : <article className="panel projectCard emptyProject">Completed milestones will collect here.</article>)}
       </section>
+
+      {restoreTarget && <div className="modal modalNoBackdrop" onClick={() => setRestoreTarget(null)}><div className="modalCard restoreModal" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setRestoreTarget(null)}>×</button><h3>Restore deadline?</h3><p>{restoreTarget.milestone.milestone_name} will return to active deadlines with its original due date, {formatDeadline(restoreTarget.milestone.deadline_date)}.</p><div className="projectActions"><button onClick={() => restoreMilestone(restoreTarget)} disabled={saving}>{saving ? "Restoring…" : "Restore"}</button><button onClick={() => setRestoreTarget(null)}>Cancel</button></div></div></div>}
     </main>
   );
 }

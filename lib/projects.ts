@@ -143,7 +143,8 @@ export function reduceProjectEvents(events: ProjectEvent[], today = localTodayYm
           milestone_name: str(p.milestone_name) || milestone.milestone_name,
           notes: p.notes == null ? milestone.notes : str(p.notes),
           sort_order: Number(p.sort_order ?? milestone.sort_order),
-          status: milestoneStatus(p.status, milestone.status)
+          status: milestoneStatus(p.status, milestone.status),
+          completed_at: p.completed_at == null ? milestone.completed_at : str(p.completed_at) || undefined
         });
       }
     } else if (event.event_type === "change_deadline" && event.milestone_id) {
