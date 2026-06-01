@@ -204,3 +204,22 @@ Vercel Authentication protects requests to the site before the app runs, includi
 Yes. Once `WRITING_SESSIONS_READ_URL`, `PROJECTS_EVENTS_READ_URL`, and `PROJECTS_EVENTS_WEBHOOK_URL` point to the same Apps Script web app and the tokens are set in Vercel, the Google Sheet no longer needs to be published to the web.
 
 You can then remove public publishing/link sharing from the Google Sheet and rely on Apps Script running as you.
+
+## Simple password gate
+
+The app also supports a small site-wide password gate before any writing data or project data can be viewed.
+
+Required Vercel environment variables:
+
+- `WRITING_JOURNAL_PASSWORD`: the private password entered on the login screen. Keep this server-only and do not prefix it with `NEXT_PUBLIC_`.
+- `WRITING_JOURNAL_AUTH_SECRET`: optional but recommended long random signing secret for the 30-day auth cookie. Keep this server-only and do not prefix it with `NEXT_PUBLIC_`.
+
+How it works:
+
+1. Unauthenticated visitors are redirected to `/login` for normal app pages.
+2. Unauthenticated requests to private API routes such as `/api/sessions` and `/api/projects` receive a `401` response.
+3. Successful login sets an HttpOnly, SameSite=Lax cookie for 30 days.
+4. The cookie is HMAC-signed with `WRITING_JOURNAL_AUTH_SECRET` when set, otherwise with `WRITING_JOURNAL_PASSWORD`.
+5. The password and signing secret are never exposed to client-side JavaScript.
+
+This password gate is intentionally separate from the Apps Script token setup. It does not change Sheet reads, Sheet writes, project event semantics, or writing analytics calculations.

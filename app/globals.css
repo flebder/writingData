@@ -1081,3 +1081,84 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   justify-self: center;
   text-align: center;
 }
+
+.loginShell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+.loginCard {
+  width: min(420px, 100%);
+  background: color-mix(in srgb, var(--paper) 92%, var(--accent) 8%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+.loginKicker {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.loginCard h1 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Times New Roman", serif;
+  font-size: 42px;
+  line-height: 1;
+}
+.loginCopy {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+.loginForm {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+.loginForm label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.loginForm input[type="password"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  padding: 12px 13px;
+  outline: none;
+}
+.loginForm input[type="password"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.loginError {
+  margin: 0;
+  color: #9a4f4f;
+  font-size: 13px;
+}
+.loginButton {
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 82%, var(--paper) 18%);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 10px 18px rgba(31, 56, 42, 0.14);
+}
+.loginButton:hover {
+  filter: brightness(1.03);
+}
+[data-theme="dark"] .loginCard {
+  background: color-mix(in srgb, var(--paper) 86%, var(--accent) 14%);
+}
+[data-theme="dark"] .loginError {
+  color: #e5a6a6;
+}
