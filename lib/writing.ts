@@ -12,7 +12,6 @@ export type DayBucket = {
   sessionSegments: Array<{ session: WritingSession; countedMinutes: number; note: string }>;
 };
 
-export const SHEET_ID = "10vokY2B5p69eY_9CieUCzgfFY6NjJfKzAv36bAqj9Qg";
 export const WRITING_TZ = "America/Los_Angeles";
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;

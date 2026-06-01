@@ -58,3 +58,7 @@ The Next.js API route posts JSON like this to `PROJECTS_EVENTS_WEBHOOK_URL`:
 Your Apps Script should validate the optional token, then append one row per event using the six columns above. Store `payload` with `JSON.stringify(event.payload)`.
 
 If the project environment variables are missing or the project sheet cannot be loaded, the writing dashboard still works and the project strip falls back gracefully.
+
+## Private sheet recommendation
+
+For private Google Sheets, prefer the Apps Script read/write setup documented in `PRIVACY_SECURITY.md` instead of a published CSV URL. In that setup, Vercel stores `PROJECTS_EVENTS_READ_URL`, `PROJECTS_EVENTS_WEBHOOK_URL`, and `PROJECTS_EVENTS_TOKEN` as server-only environment variables, and Apps Script reads/writes the private sheet while executing as you.

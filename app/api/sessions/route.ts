@@ -1,17 +1,35 @@
 import { NextResponse } from "next/server";
-import { FALLBACK_SESSIONS, parseCsvSessions, SHEET_ID } from "@/lib/writing";
+import { FALLBACK_SESSIONS, parseCsvSessions } from "@/lib/writing";
 
 export const revalidate = 300;
 export const dynamic = "force-dynamic";
 
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
+const HEADERS = { "Cache-Control": "no-store, no-cache, must-revalidate" };
+const READ_ERROR = "Unable to fetch writing sessions from the configured private sheet reader. Serving fallback data.";
+
+function json(data: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(data, { ...init, headers: { ...HEADERS, ...(init.headers || {}) } });
+}
+
+function configuredReadUrl() {
+  return process.env.WRITING_SESSIONS_READ_URL || process.env.WRITING_SESSIONS_CSV_URL || "";
+}
+
+function readUrlWithToken(rawUrl: string) {
+  const token = process.env.WRITING_SESSIONS_TOKEN || "";
+  if (!token || rawUrl.includes("docs.google.com/spreadsheets")) return rawUrl;
+  const url = new URL(rawUrl);
+  if (!url.searchParams.has("token")) url.searchParams.set("token", token);
+  if (!url.searchParams.has("action")) url.searchParams.set("action", "sessions");
+  return url.toString();
+}
 
 async function fetchWithTimeout(url: string, timeoutMs = 15_000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(url, {
+    const res = await fetch(readUrlWithToken(url), {
       signal: controller.signal,
       cache: "no-store",
       headers: {
@@ -20,7 +38,7 @@ async function fetchWithTimeout(url: string, timeoutMs = 15_000) {
     });
 
     if (!res.ok) {
-      throw new Error(`Google Sheets request failed (${res.status})`);
+      throw new Error(`Writing sessions request failed (${res.status})`);
     }
 
     return await res.text();
@@ -30,13 +48,24 @@ async function fetchWithTimeout(url: string, timeoutMs = 15_000) {
 }
 
 export async function GET() {
+  const readUrl = configuredReadUrl();
+  if (!readUrl) {
+    return json({
+      ok: false,
+      error: "Writing sessions are not connected yet. Serving fallback data.",
+      source: "fallback",
+      sessions: FALLBACK_SESSIONS,
+      fetchedAt: new Date().toISOString()
+    });
+  }
+
   try {
-    const csv = await fetchWithTimeout(CSV_URL);
+    const csv = await fetchWithTimeout(readUrl);
     const sessions = parseCsvSessions(csv);
 
     if (sessions.length === 0) {
       console.error("/api/sessions parsed zero valid rows; serving fallback dataset");
-      return NextResponse.json({
+      return json({
         ok: false,
         warning: "Sheet loaded but contained no valid rows. Serving fallback data.",
         source: "fallback",
@@ -45,19 +74,19 @@ export async function GET() {
       }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
     }
 
-    return NextResponse.json({
+    return json({
       ok: true,
-      source: CSV_URL,
+      source: process.env.WRITING_SESSIONS_READ_URL ? "private-reader" : "server-csv",
       sessions,
       fetchedAt: new Date().toISOString()
     }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch (error) {
     console.error("/api/sessions failed; serving fallback dataset", error);
 
-    return NextResponse.json(
+    return json(
       {
         ok: false,
-        error: "Unable to fetch writing sessions from Google Sheets. Serving fallback data.",
+        error: READ_ERROR,
         source: "fallback",
         sessions: FALLBACK_SESSIONS,
         fetchedAt: new Date().toISOString()

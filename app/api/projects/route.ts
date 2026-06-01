@@ -74,6 +74,16 @@ function parseEventsCsv(text: string): ProjectEvent[] {
   return rows;
 }
 
+
+function urlWithToken(rawUrl: string) {
+  const token = process.env.PROJECTS_EVENTS_TOKEN || "";
+  if (!token || rawUrl.includes("docs.google.com/spreadsheets")) return rawUrl;
+  const url = new URL(rawUrl);
+  if (!url.searchParams.has("token")) url.searchParams.set("token", token);
+  if (!url.searchParams.has("action")) url.searchParams.set("action", "projects");
+  return url.toString();
+}
+
 function normalizeEvents(value: unknown): ProjectEvent[] {
   const rawEvents = Array.isArray(value) ? value : value && typeof value === "object" && Array.isArray((value as { events?: unknown }).events) ? (value as { events: unknown[] }).events : [];
   return rawEvents
@@ -89,10 +99,10 @@ function normalizeEvents(value: unknown): ProjectEvent[] {
 }
 
 async function fetchEvents(): Promise<{ configured: boolean; events: ProjectEvent[]; warning?: string }> {
-  const readUrl = process.env.PROJECTS_EVENTS_CSV_URL || process.env.PROJECTS_EVENTS_READ_URL;
+  const readUrl = process.env.PROJECTS_EVENTS_READ_URL || process.env.PROJECTS_EVENTS_CSV_URL;
   if (!readUrl) return { configured: false, events: [], warning: NOT_CONFIGURED_MESSAGE };
 
-  const response = await fetch(readUrl, { cache: "no-store" });
+  const response = await fetch(urlWithToken(readUrl), { cache: "no-store" });
   if (!response.ok) throw new Error(`Project event fetch failed: ${response.status}`);
   const text = await response.text();
   const trimmed = text.trim();
