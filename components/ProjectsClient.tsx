@@ -313,8 +313,8 @@ export default function ProjectsClient() {
             </div>
             <div className="projectNotes" onClick={(e) => isEditing && e.stopPropagation()}>{isEditing ? <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes" /> : null}</div>
             {!isEditing && <button className="projectStatus completeStatus" aria-label={`Mark ${deadline.milestone.milestone_name} complete`} onClick={(e) => { e.stopPropagation(); setManualAdjust((current) => current?.completing.milestone.milestone_id === deadline.milestone.milestone_id ? null : { completing: deadline }); }} onMouseEnter={() => setCompletionHoverId(deadline.milestone.milestone_id)} onMouseLeave={() => setCompletionHoverId(null)} onFocus={() => setCompletionHoverId(deadline.milestone.milestone_id)} onBlur={() => setCompletionHoverId(null)} disabled={saving}>
-              <strong className="deadlinePill">{dueCopy(deadline)}</strong>
               <span className="statusDate">{formatDeadline(deadline.milestone.deadline_date)}</span>
+              <strong className="deadlinePill">{dueCopy(deadline)}</strong>
               <span className="completeHint">Mark done</span>
             </button>}
             {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox completionPrompt" onClick={(e) => e.stopPropagation()}>

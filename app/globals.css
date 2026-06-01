@@ -1064,3 +1064,20 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   background: color-mix(in srgb, var(--paper) 38%, #653239 62%);
   color: #f4dddd;
 }
+
+/* Center and reorder deadline status badge text */
+.activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.activeProjectsList .projectCard:not(.isEditing) .deadlinePill,
+.activeProjectsList .projectCard:not(.isEditing) .statusDate,
+.activeProjectsList .projectCard:not(.isEditing) .completeHint {
+  width: 100%;
+  justify-content: center;
+  justify-self: center;
+  text-align: center;
+}
