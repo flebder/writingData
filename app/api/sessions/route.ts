@@ -71,7 +71,7 @@ export async function GET() {
         source: "fallback",
         sessions: FALLBACK_SESSIONS,
         fetchedAt: new Date().toISOString()
-      });
+      }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
     }
 
     return json({
@@ -79,7 +79,7 @@ export async function GET() {
       source: process.env.WRITING_SESSIONS_READ_URL ? "private-reader" : "server-csv",
       sessions,
       fetchedAt: new Date().toISOString()
-    });
+    }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch (error) {
     console.error("/api/sessions failed; serving fallback dataset", error);
 
@@ -91,7 +91,7 @@ export async function GET() {
         sessions: FALLBACK_SESSIONS,
         fetchedAt: new Date().toISOString()
       },
-      { status: 200 }
+      { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
     );
   }
 }
