@@ -61,4 +61,4 @@ If the project environment variables are missing or the project sheet cannot be 
 
 ## Private sheet recommendation
 
-For private Google Sheets, prefer the Apps Script read/write setup documented in `PRIVACY_SECURITY.md` instead of a published CSV URL. In that setup, Vercel stores `PROJECTS_EVENTS_READ_URL`, `PROJECTS_EVENTS_WEBHOOK_URL`, and `PROJECTS_EVENTS_TOKEN` as server-only environment variables, and Apps Script reads/writes the private sheet while executing as you.
+For private Google Sheets, prefer the Apps Script read/write setup documented in `PRIVACY_SECURITY.md` instead of a published CSV URL. In that setup, the same Apps Script web app handles writing-session reads from `data entry`, project-event reads from `ProjectEvents`, and project-event writes. Vercel stores `WRITING_SESSIONS_READ_URL`, `PROJECTS_EVENTS_READ_URL`, `PROJECTS_EVENTS_WEBHOOK_URL`, and the token values as server-only environment variables.

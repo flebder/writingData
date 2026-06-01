@@ -28,9 +28,10 @@ For private Sheets, use the Apps Script endpoint below and point Vercel to the A
 
 1. Browser loads the Writing Journal site.
 2. Browser calls only same-origin Next.js API routes (`/api/sessions`, `/api/projects`).
-3. Next.js API routes call a Google Apps Script web app with a shared token.
+3. Next.js API routes call the same Google Apps Script web app with a shared token.
 4. Apps Script runs as you and reads/writes the private Google Sheet.
-5. The Google Sheet can remain private; do not publish it to the web.
+5. The same spreadsheet contains the writing-session tab (`data entry`) and project-event tab (`ProjectEvents`).
+6. The Google Sheet can remain private; do not publish it to the web.
 
 ## Required Vercel environment variables
 
@@ -38,7 +39,7 @@ All of these are server-only. Do **not** prefix them with `NEXT_PUBLIC_`.
 
 ### Writing sessions
 
-- `WRITING_SESSIONS_READ_URL`: Apps Script web app URL for reading writing sessions. Use the `/exec` URL from Apps Script deployment.
+- `WRITING_SESSIONS_READ_URL`: Apps Script web app URL for reading writing sessions. Use the same `/exec` URL from the existing project/deadline Apps Script deployment.
 - `WRITING_SESSIONS_TOKEN`: shared secret token expected by Apps Script for session reads.
 
 Optional legacy fallback:
@@ -47,21 +48,21 @@ Optional legacy fallback:
 
 ### Project events
 
-- `PROJECTS_EVENTS_READ_URL`: Apps Script web app URL for reading project events. Recommended for private sheets.
-- `PROJECTS_EVENTS_WEBHOOK_URL`: Apps Script web app URL for writing project events.
+- `PROJECTS_EVENTS_READ_URL`: Apps Script web app URL for reading project events. Use the same `/exec` URL.
+- `PROJECTS_EVENTS_WEBHOOK_URL`: Apps Script web app URL for writing project events. Use the same `/exec` URL.
 - `PROJECTS_EVENTS_TOKEN`: shared secret token expected by Apps Script for project reads/writes.
 
 Compatibility:
 
-- `PROJECTS_EVENTS_CSV_URL` is still supported. For private Sheets, set it to the same Apps Script `/exec` URL or replace it with `PROJECTS_EVENTS_READ_URL`.
+- `PROJECTS_EVENTS_CSV_URL` is still supported. For private Sheets, leave it unset and use `PROJECTS_EVENTS_READ_URL`, or set it to the same Apps Script `/exec` URL for compatibility.
 
 ## Apps Script `Code.gs`
 
 Set Script Properties in Apps Script:
 
-- `SPREADSHEET_ID`: your private Google Sheet ID.
+- `SPREADSHEET_ID`: `10vokY2B5p69eY_9CieUCzgfFY6NjJfKzAv36bAqj9Qg`
 - `TOKEN`: a long random shared secret. Use the same value in Vercel as `WRITING_SESSIONS_TOKEN` and `PROJECTS_EVENTS_TOKEN`, or adapt the code for separate tokens.
-- `WRITING_SHEET_NAME`: tab containing the existing writing session rows.
+- `WRITING_SHEET_NAME`: `data entry`
 - `PROJECT_EVENTS_SHEET_NAME`: `ProjectEvents`.
 
 The `ProjectEvents` tab header should be:
@@ -135,7 +136,7 @@ function doGet(e) {
     return csv_(sheetToCsv_(projectSheet));
   }
 
-  const writingSheet = props_().getProperty("WRITING_SHEET_NAME") || "WritingSessions";
+  const writingSheet = props_().getProperty("WRITING_SHEET_NAME") || "data entry";
   return csv_(sheetToCsv_(writingSheet));
 }
 
@@ -169,6 +170,8 @@ function doPost(e) {
 
 ## Deploy Apps Script
 
+Use the same Apps Script web app for writing-session reads, project-event reads, and project-event writes. You do not need a separate deployment for writing sessions.
+
 1. Open the private Google Sheet.
 2. Go to **Extensions → Apps Script**.
 3. Paste the `Code.gs` above.
@@ -177,7 +180,7 @@ function doPost(e) {
 6. Choose:
    - **Execute as:** Me
    - **Who has access:** Anyone / Anyone with the link
-7. Copy the `/exec` Web app URL into Vercel environment variables.
+7. Copy the same `/exec` Web app URL into `WRITING_SESSIONS_READ_URL`, `PROJECTS_EVENTS_READ_URL`, and `PROJECTS_EVENTS_WEBHOOK_URL` in Vercel.
 
 Even though the web app is reachable by link, it only returns data when the token matches. The Sheet itself can remain private because the script executes as you.
 
@@ -198,6 +201,6 @@ Vercel Authentication protects requests to the site before the app runs, includi
 
 ## Can the Sheet be private?
 
-Yes. Once `WRITING_SESSIONS_READ_URL`, `PROJECTS_EVENTS_READ_URL`, and `PROJECTS_EVENTS_WEBHOOK_URL` point to the Apps Script web app and the tokens are set in Vercel, the Google Sheet no longer needs to be published to the web.
+Yes. Once `WRITING_SESSIONS_READ_URL`, `PROJECTS_EVENTS_READ_URL`, and `PROJECTS_EVENTS_WEBHOOK_URL` point to the same Apps Script web app and the tokens are set in Vercel, the Google Sheet no longer needs to be published to the web.
 
 You can then remove public publishing/link sharing from the Google Sheet and rely on Apps Script running as you.
