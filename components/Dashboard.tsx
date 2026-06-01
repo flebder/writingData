@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { addDaysToYmd, aggregateDays, getYmdInWritingTz, localTodayYmd, rollingWeekMinutes, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
-import type { ProjectDeadline, ProjectState } from "@/lib/projects";
+import type { ProjectDeadline, ProjectEvent, ProjectState } from "@/lib/projects";
+import { createWritingGoalsEvent, getWritingGoalsForDate, validateWritingGoals, type WritingGoals } from "@/lib/goals";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
-type ProjectsPayload = { ok: boolean; configured: boolean; state: ProjectState; warning?: string };
+type ProjectsPayload = { ok: boolean; configured: boolean; state: ProjectState; events?: ProjectEvent[]; warning?: string };
 
 const EMPTY_PROJECT_STATE: ProjectState = { projects: [], milestones: [], activeDeadlines: [], completedMilestones: [], nextDeadline: null };
 const PROJECTS_UNAVAILABLE: ProjectsPayload = { ok: false, configured: true, state: EMPTY_PROJECT_STATE, warning: "Project deadlines unavailable" };
@@ -22,7 +23,7 @@ type LinePoint = {
 
 const fmtMinutes = (m: number) => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`);
 const minuteWord = (n: number) => (n === 1 ? "minute" : "minutes");
-const level = (min: number) => (!min ? "none" : min < 30 ? "below" : min < 60 ? "baseline" : min < 120 ? "goal" : "super");
+const level = (min: number, goals: WritingGoals) => (!min ? "none" : min < goals.baselineMinutes ? "below" : min < goals.awesomeMinutes ? "baseline" : min < goals.stretchMinutes ? "goal" : "super");
 const ordinal = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? `${n}st` : n % 10 === 2 && n % 100 !== 12 ? `${n}nd` : n % 10 === 3 && n % 100 !== 13 ? `${n}rd` : `${n}th`);
 
 const monthOrdinal = (s: string, timeZone: string) => {
@@ -55,6 +56,10 @@ function formatCompactRange(startYmd: string, endYmd: string, timeZone: string):
 function formatProjectDate(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+}
+
+function formatGoalValue(minutes: number): string {
+  return fmtMinutes(minutes);
 }
 
 function projectDueText(deadline: ProjectDeadline): string {
@@ -175,6 +180,10 @@ export default function Dashboard() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [themeReady, setThemeReady] = useState(false);
   const [todayKey, setTodayKey] = useState(() => localTodayYmd(new Date()));
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [goalForm, setGoalForm] = useState<WritingGoals>({ baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 });
+  const [goalMessage, setGoalMessage] = useState<string | null>(null);
+  const [savingGoals, setSavingGoals] = useState(false);
 
   useEffect(() => {
     fetch("/api/sessions", { cache: "no-store" }).then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
@@ -262,7 +271,10 @@ export default function Dashboard() {
   }, [displayYear]);
 
   const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), canonicalTimeZone), [payload, canonicalTimeZone]);
-  const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, 30), [byDay, todayKey]);
+  const projectEvents = projectsPayload?.events || [];
+  const goalsForDay = (day: string) => getWritingGoalsForDate(projectEvents, day);
+  const todayGoals = getWritingGoalsForDate(projectEvents, todayKey);
+  const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectsPayload]);
   const projectDeadlines = projectsPayload?.state?.activeDeadlines || [];
   const projectDeadlinesByDay = useMemo(() => {
     const grouped: Record<string, ProjectDeadline[]> = {};
@@ -275,6 +287,39 @@ export default function Dashboard() {
   const projectBarDeadline = projectsPayload?.state?.nextDeadline || null;
   const projectsUnavailable = projectsPayload !== null && !projectsPayload.ok && Boolean(projectsPayload.warning);
   const projectBarClass = projectsUnavailable ? "unavailable" : projectUiUrgency(projectBarDeadline) || (projectsPayload === null ? "loading" : "empty");
+  useEffect(() => {
+    setGoalForm({ baselineMinutes: todayGoals.baselineMinutes, awesomeMinutes: todayGoals.awesomeMinutes, stretchMinutes: todayGoals.stretchMinutes });
+  }, [todayGoals.baselineMinutes, todayGoals.awesomeMinutes, todayGoals.stretchMinutes]);
+
+  async function saveGoals(event: FormEvent) {
+    event.preventDefault();
+    setGoalMessage(null);
+    const validation = validateWritingGoals(goalForm);
+    if (validation) {
+      setGoalMessage(validation);
+      return;
+    }
+
+    setSavingGoals(true);
+    const goalEvent = createWritingGoalsEvent(goalForm, todayKey);
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ events: [goalEvent] })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.warning || "Unable to save writing goals.");
+      setProjectsPayload((current) => current ? { ...current, events: [...(current.events || []), goalEvent] } : current);
+      setGoalMessage("Saved. New thresholds apply from today forward.");
+      setSettingsOpen(false);
+    } catch {
+      setGoalMessage("Writing goals could not be saved right now.");
+    } finally {
+      setSavingGoals(false);
+    }
+  }
 
   const weekdayBars = useMemo(() => {
     const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -333,6 +378,7 @@ export default function Dashboard() {
   const moveNext = () => viewMode === "year" ? setDisplayDate(new Date(Date.UTC(displayYear + 1, 0, 1))) : setDisplayDate(new Date(Date.UTC(displayYear, displayMonth + 1, 1)));
 
   const selected = selectedDay ? byDay[selectedDay] : null;
+  const selectedGoals = selectedDay ? goalsForDay(selectedDay) : null;
   const hovered = hover?.day ? byDay[hover.day] : null;
   const maxHour = Math.max(1, ...hourly.map((h) => h.daysCount));
   const maxLine = Math.max(1, ...lineData.map((d) => d.minutes));
@@ -380,12 +426,12 @@ export default function Dashboard() {
               const missed = isMissedDay(key, min, todayKey);
               const due = projectDeadlinesByDay[key] || [];
               const dueUrgency = due.some((item) => item.urgency === "overdue") ? "overdue" : due.some((item) => item.urgency === "today") ? "today" : due.length ? "future" : "";
-              return <button key={key} className={`day ${level(min)} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getUTCDate()}{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>;
+              return <button key={key} className={`day ${level(min, goalsForDay(key))} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getUTCDate()}{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>;
             })}
           </div>
         ) : calendarMode === "grid" ? (
           <div className="yearWrap">
-            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(Date.UTC(displayYear, m.month, 1))); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); const due = projectDeadlinesByDay[key] || []; const dueUrgency = due.some((item) => item.urgency === "overdue") ? "overdue" : due.some((item) => item.urgency === "today") ? "today" : due.length ? "future" : ""; return <button key={key} className={`mini ${level(min)} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)}>{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>; })}</div></div>)}
+            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(Date.UTC(displayYear, m.month, 1))); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); const due = projectDeadlinesByDay[key] || []; const dueUrgency = due.some((item) => item.urgency === "overdue") ? "overdue" : due.some((item) => item.urgency === "today") ? "today" : due.length ? "future" : ""; return <button key={key} className={`mini ${level(min, goalsForDay(key))} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)}>{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>; })}</div></div>)}
           </div>
         ) : (
           <div className="lineWrap">
@@ -428,7 +474,27 @@ export default function Dashboard() {
         {hourHover && <div className="hourTooltip" style={{ left: hourHover.x + 12, top: hourHover.y + 12 }}><strong>{String(hourHover.hour).padStart(2, "0")}:00</strong><span>Written on {hourly[hourHover.hour].daysCount} days</span><span>Average: {hourly[hourHover.hour].avgMinutes} minutes</span></div>}
       </section>
 
-      {selected && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><h3>{formatYmdLabel(selected.date, dateFmt, canonicalTimeZone)}</h3><p>Total writing: <strong>{fmtMinutes(selected.minutes)}</strong></p>{(projectDeadlinesByDay[selected.date] || []).length ? <div className="dayDeadlineList"><ul>{projectDeadlinesByDay[selected.date].map((deadline) => <li key={deadline.milestone.milestone_id}>Due: {deadline.milestone.milestone_name}{deadline.project.project_name ? ` — ${deadline.project.project_name}` : ""}</li>)}</ul></div> : null}<p>Last 7 days: <strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((s) => ({ session: s, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div>}
+
+
+      <section className="settingsFooter">
+        <button className="settingsToggle" onClick={() => setSettingsOpen((open) => !open)}>{settingsOpen ? "Close settings" : "Settings"}</button>
+        {settingsOpen && <form className="panel goalSettingsPanel" onSubmit={saveGoals}>
+          <div>
+            <p className="eyebrow">Writing goals</p>
+            <h3>Current thresholds</h3>
+            <p>Changes apply from today forward only. Earlier days keep the goals that were active then.</p>
+          </div>
+          <div className="goalInputs">
+            <label>Goal minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
+            <label>Awesome minutes<input type="number" min={goalForm.baselineMinutes + 1} value={goalForm.awesomeMinutes} onChange={(e) => setGoalForm({ ...goalForm, awesomeMinutes: Number(e.target.value) })} /></label>
+            <label>Stretch minutes<input type="number" min={goalForm.awesomeMinutes + 1} value={goalForm.stretchMinutes} onChange={(e) => setGoalForm({ ...goalForm, stretchMinutes: Number(e.target.value) })} /></label>
+          </div>
+          {goalMessage ? <p className="settingsMessage">{goalMessage}</p> : null}
+          <button className="settingsSave" disabled={savingGoals}>{savingGoals ? "Saving…" : "Save goals"}</button>
+        </form>}
+      </section>
+
+      {selected && selectedGoals && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard dayDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><h3>{formatYmdLabel(selected.date, dateFmt, canonicalTimeZone)}</h3><div className="dayDetailStats"><p><span>Total writing</span><strong>{fmtMinutes(selected.minutes)}</strong></p><p><span>Last 7 days</span><strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p></div>{(projectDeadlinesByDay[selected.date] || []).length ? <div className="dayDeadlineList"><strong>Deadlines</strong><ul>{projectDeadlinesByDay[selected.date].map((deadline) => <li key={deadline.milestone.milestone_id}>Due: {deadline.milestone.milestone_name}{deadline.project.project_name ? ` — ${deadline.project.project_name}` : ""}</li>)}</ul></div> : null}<div className="dayGoalBox"><strong>Goals for this day</strong><div><span>Goal: {formatGoalValue(selectedGoals.baselineMinutes)}</span><span>Awesome: {formatGoalValue(selectedGoals.awesomeMinutes)}</span><span>Stretch: {formatGoalValue(selectedGoals.stretchMinutes)}</span></div></div><div className="daySessions"><strong>Writing sessions</strong><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((session) => ({ session, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div></div>}
 
       {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard trendDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p><strong>Current pace:</strong> {stats.trend.dailyNow} {minuteWord(stats.trend.dailyNow)}/day</p><p><strong>Previous pace:</strong> {stats.trend.dailyPrev} {minuteWord(stats.trend.dailyPrev)}/day</p><p><strong>Change:</strong> {trendMinutes} {minuteWord(trendMinutes)} {trendDirection} per day</p><p><strong>Compared:</strong> {comparedCurrent} vs. {comparedPrevious}</p></div></div>}
 

@@ -9,7 +9,8 @@ export type ProjectEventType =
   | "add_milestone"
   | "update_milestone"
   | "complete_milestone"
-  | "change_deadline";
+  | "change_deadline"
+  | "update_writing_goals";
 
 export type ProjectEvent = {
   event_id: string;

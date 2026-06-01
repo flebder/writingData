@@ -21,6 +21,7 @@ Supported `event_type` values:
 - `update_milestone`
 - `complete_milestone`
 - `change_deadline`
+- `update_writing_goals` (stores effective-dated writing goal thresholds in the same append-only log; it does not change project milestone semantics)
 
 ## Environment variables
 

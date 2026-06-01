@@ -23,9 +23,15 @@ function daysBetween(a: string, b: string): number {
   return Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / 86_400_000);
 }
 
-function buildSegments(byDay: Record<string, { minutes: number }>, baselineMinutes: number, filter?: (ymd: string) => boolean): StreakSegment[] {
+type BaselineResolver = number | ((ymd: string) => number);
+
+function baselineFor(resolver: BaselineResolver, ymd: string): number {
+  return typeof resolver === "function" ? resolver(ymd) : resolver;
+}
+
+function buildSegments(byDay: Record<string, { minutes: number }>, baselineMinutes: BaselineResolver, filter?: (ymd: string) => boolean): StreakSegment[] {
   const qualifying = Object.keys(byDay)
-    .filter((d) => byDay[d].minutes >= baselineMinutes && (!filter || filter(d)))
+    .filter((d) => byDay[d].minutes >= baselineFor(baselineMinutes, d) && (!filter || filter(d)))
     .sort();
   const segments: StreakSegment[] = [];
   for (const day of qualifying) {
@@ -51,9 +57,9 @@ function pickBestScore(segments: StreakSegment[]): StreakSegment | null {
   return [...segments].sort((a, b) => b.scoreMinutes - a.scoreMinutes || a.days - b.days || b.end.localeCompare(a.end))[0];
 }
 
-export function computeStreakSummary(byDay: Record<string, { minutes: number }>, todayYmd: string, baselineMinutes = 30): StreakSummary {
+export function computeStreakSummary(byDay: Record<string, { minutes: number }>, todayYmd: string, baselineMinutes: BaselineResolver = 30): StreakSummary {
   const todayMinutes = byDay[todayYmd]?.minutes || 0;
-  const todayQualified = todayMinutes >= baselineMinutes;
+  const todayQualified = todayMinutes >= baselineFor(baselineMinutes, todayYmd);
 
   const yearPrefix = `${todayYmd.slice(0, 4)}-`;
   const yearSegments = buildSegments(byDay, baselineMinutes, (ymd) => ymd.startsWith(yearPrefix));
