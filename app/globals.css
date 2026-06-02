@@ -1280,3 +1280,27 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   .goalInputs,
   .dayDetailStats { grid-template-columns: 1fr; }
 }
+.goalInputs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.gradualToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-weight: 700;
+}
+.gradualToggle input { accent-color: var(--accent); }
+.goalPreview {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 76%, var(--accent-soft) 24%);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--accent) 22%);
+}
+.goalPreview ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+.goalPreview p { margin-top: 6px; }
+[data-theme="dark"] .goalPreview { background: color-mix(in srgb, var(--paper) 78%, var(--accent) 8%); }
+@media (max-width: 760px) {
+  .goalInputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .goalInputs { grid-template-columns: 1fr; }
+}

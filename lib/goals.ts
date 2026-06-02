@@ -18,9 +18,9 @@ export const DEFAULT_WRITING_GOALS: EffectiveWritingGoals = {
 };
 
 export function validateWritingGoals(goals: WritingGoals): string | null {
-  if (!Number.isFinite(goals.baselineMinutes) || goals.baselineMinutes < 1) return "Goal must be at least 1 minute.";
-  if (!Number.isFinite(goals.awesomeMinutes) || goals.awesomeMinutes < goals.baselineMinutes + 1) return "Awesome must be at least one minute above goal.";
-  if (!Number.isFinite(goals.stretchMinutes) || goals.stretchMinutes < goals.awesomeMinutes + 1) return "Stretch must be at least one minute above awesome.";
+  if (!Number.isFinite(goals.baselineMinutes) || goals.baselineMinutes < 1) return "Baseline must be at least 1 minute.";
+  if (!Number.isFinite(goals.awesomeMinutes) || goals.awesomeMinutes < goals.baselineMinutes + 1) return "Goal must be at least one minute above baseline.";
+  if (!Number.isFinite(goals.stretchMinutes) || goals.stretchMinutes < goals.awesomeMinutes + 1) return "Stretch must be at least one minute above goal.";
   return null;
 }
 
@@ -57,8 +57,54 @@ export function getWritingGoalsForDate(events: ProjectEvent[], dateKey: string):
   }
   return active;
 }
+function offsetYmd(day: string, offsetDays: number): string {
+  const [year, month, date] = day.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, date + offsetDays));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+}
 
-export function createWritingGoalsEvent(goals: WritingGoals, effectiveDate: string): ProjectEvent {
+function stepValue(current: number, target: number, step: number): number {
+  const diff = target - current;
+  if (diff === 0) return target;
+  const direction = diff > 0 ? 1 : -1;
+  return current + direction * Math.min(Math.abs(diff), step);
+}
+
+export function buildGradualGoalSchedule(
+  current: WritingGoals,
+  target: WritingGoals,
+  startDate: string,
+  stepMinutes = 5,
+  intervalDays = 14
+): EffectiveWritingGoals[] {
+  const targetValidation = validateWritingGoals(target);
+  if (targetValidation) throw new Error(targetValidation);
+
+  const maxDiff = Math.max(
+    Math.abs(target.baselineMinutes - current.baselineMinutes),
+    Math.abs(target.awesomeMinutes - current.awesomeMinutes),
+    Math.abs(target.stretchMinutes - current.stretchMinutes)
+  );
+  const steps = Math.max(1, Math.ceil(maxDiff / stepMinutes));
+  const schedule: EffectiveWritingGoals[] = [];
+
+  for (let index = 1; index <= steps; index += 1) {
+    const movedBy = index * stepMinutes;
+    const goals: EffectiveWritingGoals = {
+      effectiveDate: offsetYmd(startDate, (index - 1) * intervalDays),
+      baselineMinutes: stepValue(current.baselineMinutes, target.baselineMinutes, movedBy),
+      awesomeMinutes: stepValue(current.awesomeMinutes, target.awesomeMinutes, movedBy),
+      stretchMinutes: stepValue(current.stretchMinutes, target.stretchMinutes, movedBy)
+    };
+    const validation = validateWritingGoals(goals);
+    if (validation) throw new Error(`Gradual shift creates invalid goals on ${goals.effectiveDate}: ${validation}`);
+    schedule.push(goals);
+  }
+
+  return schedule;
+}
+
+export function createWritingGoalsEvent(goals: WritingGoals, effectiveDate: string, extraPayload: Record<string, unknown> = {}): ProjectEvent {
   const validation = validateWritingGoals(goals);
   if (validation) throw new Error(validation);
   const cryptoObj = globalThis.crypto;
@@ -69,6 +115,7 @@ export function createWritingGoalsEvent(goals: WritingGoals, effectiveDate: stri
     event_type: "update_writing_goals",
     project_id: "writing_goals",
     payload: {
+      ...extraPayload,
       effective_date: effectiveDate,
       baseline_minutes: goals.baselineMinutes,
       awesome_minutes: goals.awesomeMinutes,

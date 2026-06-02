@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { addDaysToYmd, aggregateDays, getYmdInWritingTz, localTodayYmd, rollingWeekMinutes, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
 import type { ProjectDeadline, ProjectEvent, ProjectState } from "@/lib/projects";
-import { createWritingGoalsEvent, getWritingGoalsForDate, validateWritingGoals, type WritingGoals } from "@/lib/goals";
+import { buildGradualGoalSchedule, createWritingGoalsEvent, getWritingGoalsForDate, validateWritingGoals, type WritingGoals } from "@/lib/goals";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
 type ProjectsPayload = { ok: boolean; configured: boolean; state: ProjectState; events?: ProjectEvent[]; warning?: string };
@@ -184,6 +184,9 @@ export default function Dashboard() {
   const [goalForm, setGoalForm] = useState<WritingGoals>({ baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 });
   const [goalMessage, setGoalMessage] = useState<string | null>(null);
   const [savingGoals, setSavingGoals] = useState(false);
+  const [goalStartDate, setGoalStartDate] = useState(todayKey);
+  const [gradualShift, setGradualShift] = useState(false);
+  const settingsPanelRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
     fetch("/api/sessions", { cache: "no-store" }).then((r) => r.json()).then(setPayload).catch(() => setPayload({ sessions: [], source: "fallback", fetchedAt: new Date().toISOString() }));
@@ -274,6 +277,7 @@ export default function Dashboard() {
   const projectEvents = projectsPayload?.events || [];
   const goalsForDay = (day: string) => getWritingGoalsForDate(projectEvents, day);
   const todayGoals = getWritingGoalsForDate(projectEvents, todayKey);
+  const rampStartGoals = goalStartDate <= todayKey ? todayGoals : getWritingGoalsForDate(projectEvents, addDaysToYmd(goalStartDate, -1));
   const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectsPayload]);
   const projectDeadlines = projectsPayload?.state?.activeDeadlines || [];
   const projectDeadlinesByDay = useMemo(() => {
@@ -289,7 +293,27 @@ export default function Dashboard() {
   const projectBarClass = projectsUnavailable ? "unavailable" : projectUiUrgency(projectBarDeadline) || (projectsPayload === null ? "loading" : "empty");
   useEffect(() => {
     setGoalForm({ baselineMinutes: todayGoals.baselineMinutes, awesomeMinutes: todayGoals.awesomeMinutes, stretchMinutes: todayGoals.stretchMinutes });
-  }, [todayGoals.baselineMinutes, todayGoals.awesomeMinutes, todayGoals.stretchMinutes]);
+    setGoalStartDate(todayKey);
+  }, [todayGoals.baselineMinutes, todayGoals.awesomeMinutes, todayGoals.stretchMinutes, todayKey]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    window.setTimeout(() => settingsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+  }, [settingsOpen]);
+
+  const gradualSchedule = useMemo(() => {
+    if (!gradualShift) return [];
+    try {
+      return buildGradualGoalSchedule(rampStartGoals, goalForm, goalStartDate);
+    } catch {
+      return [];
+    }
+  }, [gradualShift, rampStartGoals, goalForm, goalStartDate]);
+
+  function formatGoalScheduleDate(day: string) {
+    const [year, month, date] = day.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, date, 12)).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  }
 
   async function saveGoals(event: FormEvent) {
     event.preventDefault();
@@ -300,19 +324,32 @@ export default function Dashboard() {
       return;
     }
 
+    let goalEvents: ProjectEvent[];
+    try {
+      if (gradualShift) {
+        goalEvents = buildGradualGoalSchedule(rampStartGoals, goalForm, goalStartDate).map((goals, index) =>
+          createWritingGoalsEvent(goals, goals.effectiveDate, { gradual_shift: true, step_index: index + 1 })
+        );
+      } else {
+        goalEvents = [createWritingGoalsEvent(goalForm, goalStartDate)];
+      }
+    } catch (error) {
+      setGoalMessage(error instanceof Error ? error.message : "Writing goals could not be saved right now.");
+      return;
+    }
+
     setSavingGoals(true);
-    const goalEvent = createWritingGoalsEvent(goalForm, todayKey);
     try {
       const response = await fetch("/api/projects", {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ events: [goalEvent] })
+        body: JSON.stringify({ events: goalEvents })
       });
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.warning || "Unable to save writing goals.");
-      setProjectsPayload((current) => current ? { ...current, events: [...(current.events || []), goalEvent] } : current);
-      setGoalMessage("Saved. New thresholds apply from today forward.");
+      setProjectsPayload((current) => current ? { ...current, events: [...(current.events || []), ...goalEvents] } : current);
+      setGoalMessage(gradualShift ? `Saved ${goalEvents.length} scheduled goal changes.` : "Saved. New thresholds apply from the selected date forward.");
       setSettingsOpen(false);
     } catch {
       setGoalMessage("Writing goals could not be saved right now.");
@@ -478,23 +515,26 @@ export default function Dashboard() {
 
       <section className="settingsFooter">
         <button className="settingsToggle" onClick={() => setSettingsOpen((open) => !open)}>{settingsOpen ? "Close settings" : "Settings"}</button>
-        {settingsOpen && <form className="panel goalSettingsPanel" onSubmit={saveGoals}>
+        {settingsOpen && <form ref={settingsPanelRef} className="panel goalSettingsPanel" onSubmit={saveGoals}>
           <div>
             <p className="eyebrow">Writing goals</p>
             <h3>Current thresholds</h3>
-            <p>Changes apply from today forward only. Earlier days keep the goals that were active then.</p>
+            <p>Changes apply from the chosen start date forward. Earlier days keep the goals that were active then.</p>
           </div>
           <div className="goalInputs">
-            <label>Goal minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
-            <label>Awesome minutes<input type="number" min={goalForm.baselineMinutes + 1} value={goalForm.awesomeMinutes} onChange={(e) => setGoalForm({ ...goalForm, awesomeMinutes: Number(e.target.value) })} /></label>
+            <label>Start date<input type="date" value={goalStartDate} onChange={(e) => setGoalStartDate(e.target.value || todayKey)} /></label>
+            <label>Baseline minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
+            <label>Goal minutes<input type="number" min={goalForm.baselineMinutes + 1} value={goalForm.awesomeMinutes} onChange={(e) => setGoalForm({ ...goalForm, awesomeMinutes: Number(e.target.value) })} /></label>
             <label>Stretch minutes<input type="number" min={goalForm.awesomeMinutes + 1} value={goalForm.stretchMinutes} onChange={(e) => setGoalForm({ ...goalForm, stretchMinutes: Number(e.target.value) })} /></label>
           </div>
+          <label className="gradualToggle"><input type="checkbox" checked={gradualShift} onChange={(e) => setGradualShift(e.target.checked)} /> Gradual shift</label>
+          {gradualShift ? <div className="goalPreview"><strong>This will create {gradualSchedule.length || 1} scheduled goal {gradualSchedule.length === 1 ? "change" : "changes"}.</strong><ul>{gradualSchedule.slice(0, 5).map((goals) => <li key={goals.effectiveDate}>{formatGoalScheduleDate(goals.effectiveDate)}: {goals.baselineMinutes} / {goals.awesomeMinutes} / {goals.stretchMinutes}</li>)}</ul>{gradualSchedule.length > 5 ? <p>…and {gradualSchedule.length - 5} more.</p> : null}</div> : null}
           {goalMessage ? <p className="settingsMessage">{goalMessage}</p> : null}
           <button className="settingsSave" disabled={savingGoals}>{savingGoals ? "Saving…" : "Save goals"}</button>
         </form>}
       </section>
 
-      {selected && selectedGoals && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard dayDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><h3>{formatYmdLabel(selected.date, dateFmt, canonicalTimeZone)}</h3><div className="dayDetailStats"><p><span>Total writing</span><strong>{fmtMinutes(selected.minutes)}</strong></p><p><span>Last 7 days</span><strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p></div>{(projectDeadlinesByDay[selected.date] || []).length ? <div className="dayDeadlineList"><strong>Deadlines</strong><ul>{projectDeadlinesByDay[selected.date].map((deadline) => <li key={deadline.milestone.milestone_id}>Due: {deadline.milestone.milestone_name}{deadline.project.project_name ? ` — ${deadline.project.project_name}` : ""}</li>)}</ul></div> : null}<div className="dayGoalBox"><strong>Goals for this day</strong><div><span>Goal: {formatGoalValue(selectedGoals.baselineMinutes)}</span><span>Awesome: {formatGoalValue(selectedGoals.awesomeMinutes)}</span><span>Stretch: {formatGoalValue(selectedGoals.stretchMinutes)}</span></div></div><div className="daySessions"><strong>Writing sessions</strong><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((session) => ({ session, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div></div>}
+      {selected && selectedGoals && calendarMode === "grid" && <div className="modal" onClick={() => setSelectedDay(null)}><div className="modalCard dayDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setSelectedDay(null)}>×</button><h3>{formatYmdLabel(selected.date, dateFmt, canonicalTimeZone)}</h3><div className="dayDetailStats"><p><span>Total writing</span><strong>{fmtMinutes(selected.minutes)}</strong></p><p><span>Last 7 days</span><strong>{fmtMinutes(rollingWeekMinutes(selected.date, byDay))}</strong></p></div>{(projectDeadlinesByDay[selected.date] || []).length ? <div className="dayDeadlineList"><strong>Deadlines</strong><ul>{projectDeadlinesByDay[selected.date].map((deadline) => <li key={deadline.milestone.milestone_id}>Due: {deadline.milestone.milestone_name}{deadline.project.project_name ? ` — ${deadline.project.project_name}` : ""}</li>)}</ul></div> : null}<div className="dayGoalBox"><strong>Goals for this day</strong><div><span>Baseline: {formatGoalValue(selectedGoals.baselineMinutes)}</span><span>Goal: {formatGoalValue(selectedGoals.awesomeMinutes)}</span><span>Stretch: {formatGoalValue(selectedGoals.stretchMinutes)}</span></div></div><div className="daySessions"><strong>Writing sessions</strong><ul>{(selected.sessionSegments?.length ? selected.sessionSegments : selected.sessions.map((session) => ({ session, note: "" }))).map((entry, idx) => <li key={`${entry.session.id}-${idx}`}>{timeFmt.format(new Date(entry.session.start))} – {timeFmt.format(new Date(entry.session.end))}{entry.note ? ` ${entry.note}` : ""}</li>)}</ul></div></div></div>}
 
       {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard trendDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p><strong>Current pace:</strong> {stats.trend.dailyNow} {minuteWord(stats.trend.dailyNow)}/day</p><p><strong>Previous pace:</strong> {stats.trend.dailyPrev} {minuteWord(stats.trend.dailyPrev)}/day</p><p><strong>Change:</strong> {trendMinutes} {minuteWord(trendMinutes)} {trendDirection} per day</p><p><strong>Compared:</strong> {comparedCurrent} vs. {comparedPrevious}</p></div></div>}
 
