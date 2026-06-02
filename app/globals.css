@@ -11,19 +11,77 @@
   --baseline: #9fd1b5;
   --goal: #5eae84;
   --super: #2f7f61;
+  --accent: #2f7f61;
+}
+[data-theme="dark"] {
+  --bg: #151d1a;
+  --paper: #1f2a25;
+  --ink: #f2efe4;
+  --muted: #b1bba9;
+  --line: #31413a;
+  --shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  --none: #2a342f;
+  --zero: #5a3c3c;
+  --below: #5a4a2f;
+  --baseline: #44624f;
+  --goal: #4e8f6f;
+  --super: #6aa885;
+  --accent: #7eb596;
+  --button-bg: #24322c;
+  --button-bg-hover: #2b3a33;
+  --button-active-bg: #355646;
+  --button-active-border: #5f8b74;
+  --button-text: #e8e4d8;
+  --button-active-text: #f4f0e7;
+  --month-block-bg: #222f29;
+  --mini-empty-bg: #2b3832;
+  --hour-chart-bg: #202c27;
+  --hour-bar-start: #6ea786;
+  --hour-bar-end: #4f815f;
 }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: Inter, system-ui, sans-serif; color: var(--ink); background: linear-gradient(#f8fbf7, #edf3ef); }
+html { min-height: 100%; background: var(--bg); }
+body { min-height: 100vh; margin: 0; font-family: Inter, system-ui, sans-serif; color: var(--ink); background: linear-gradient(color-mix(in srgb, var(--bg) 70%, #fff 30%), var(--bg)); }
 .journalShell { max-width: 1160px; margin: 0 auto; padding: 28px; }
+.hero { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.heroActions { display: inline-flex; align-items: center; gap: 8px; }
+.themeToggle { width: 38px; min-height: 38px; border-radius: 999px; padding: 0; display: inline-flex; align-items: center; justify-content: center; line-height: 1; font-size: 18px; }
 .hero h1 { font-family: "Iowan Old Style", "Times New Roman", serif; margin: 0; font-size: 42px; }
 .hero p { color: var(--muted); margin: 8px 0 0; }
+.streakBadge { display: inline-flex; align-items: center; justify-content: center; gap: 1px; min-height: 38px; padding: 7px 10px 7px 11px; border-radius: 999px; }
+.flame { display: inline-flex; align-items: center; justify-content: center; line-height: 1; font-size: 16px; filter: grayscale(1); opacity: 0.7; }
+.flame.active { filter: none; opacity: 1; }
+.streakCount { min-width: 17px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
 .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 14px; }
+.loadingPanel { min-height: 220px; display: grid; place-content: center; text-align: center; gap: 6px; }
+.loadingPanel h3, .loadingPanel p { margin: 0; }
+.loadingPanel p { color: var(--muted); }
+.dashboardSkeleton { animation: fadeIn 0.18s ease-out; }
+.dashboardContent.isLoaded { animation: fadeIn 0.2s ease-out; }
+.skeletonPanel, .skeletonStat { overflow: hidden; }
+.skeletonLine, .skeletonButton, .skeletonCell, .skeletonChart { display: block; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--line) 55%, transparent), color-mix(in srgb, var(--paper) 85%, #fff 15%), color-mix(in srgb, var(--line) 55%, transparent)); background-size: 220% 100%; animation: shimmer 1.6s ease-in-out infinite; }
+.skeletonTitle { width: 180px; height: 20px; }
+.skeletonButton { width: 82px; height: 32px; }
+.skeletonGrid .skeletonCell { min-height: 48px; border: 0; border-radius: 8px; }
+.skeletonLabel { width: 78px; height: 12px; }
+.skeletonValue { width: 112px; height: 24px; margin-top: 12px; }
+.skeletonText { width: 82%; height: 14px; margin-top: 12px; }
+.skeletonText.short { width: 56%; margin-top: 8px; }
+.skeletonChart { height: 160px; border-radius: 10px; margin-top: 12px; }
+@keyframes shimmer { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .dashboardSkeleton, .dashboardContent.isLoaded, .skeletonLine, .skeletonButton, .skeletonCell, .skeletonChart { animation: none; }
+}
 .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
 .navBlock { display: flex; align-items: center; gap: 10px; }
 .modeSwitch { display: flex; gap: 8px; }
-button { border: 1px solid var(--line); background: #f8fcf9; color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+button { border: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 82%, #ffffff 18%); color: var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 button.active { background: #dcefe2; border-color: #9dcab0; }
+[data-theme="dark"] button { background: var(--button-bg); color: var(--button-text); border-color: #3a4b43; }
+[data-theme="dark"] button:hover { background: var(--button-bg-hover); }
+[data-theme="dark"] button.active { background: var(--button-active-bg); border-color: var(--button-active-border); color: var(--button-active-text); }
 
 .monthGrid { display: grid; grid-template-columns: repeat(7,1fr); gap: 8px; }
 .day { min-height: 48px; border-radius: 8px; }
@@ -34,23 +92,40 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .day.goal, .mini.goal { background: var(--goal); color: #fff; }
 .day.super, .mini.super { background: var(--super); color: #fff; }
 .day.empty { opacity: 0; pointer-events: none; }
+.day.today, .mini.today { box-shadow: inset 0 0 0 2px #c8942f; }
+[data-theme="dark"] .day.today, [data-theme="dark"] .mini.today { box-shadow: inset 0 0 0 2px #e1b45b; }
+.day.none:hover, .mini.none:hover { background: color-mix(in srgb, var(--none) 82%, #000 18%); }
+.day.zeroPast:hover, .mini.zeroPast:hover { background: color-mix(in srgb, var(--zero) 82%, #000 18%); }
+.day.below:hover, .mini.below:hover { background: color-mix(in srgb, var(--below) 82%, #000 18%); }
+.day.baseline:hover, .mini.baseline:hover { background: color-mix(in srgb, var(--baseline) 82%, #000 18%); }
+.day.goal:hover, .mini.goal:hover { background: color-mix(in srgb, var(--goal) 82%, #000 18%); }
+.day.super:hover, .mini.super:hover { background: color-mix(in srgb, var(--super) 82%, #000 18%); }
+[data-theme="dark"] .day.none:hover, [data-theme="dark"] .mini.none:hover { background: color-mix(in srgb, var(--none) 72%, #000 28%); }
+[data-theme="dark"] .day.zeroPast:hover, [data-theme="dark"] .mini.zeroPast:hover { background: color-mix(in srgb, var(--zero) 74%, #000 26%); }
+[data-theme="dark"] .day.below:hover, [data-theme="dark"] .mini.below:hover { background: color-mix(in srgb, var(--below) 74%, #000 26%); }
+[data-theme="dark"] .day.baseline:hover, [data-theme="dark"] .mini.baseline:hover { background: color-mix(in srgb, var(--baseline) 74%, #000 26%); }
+[data-theme="dark"] .day.goal:hover, [data-theme="dark"] .mini.goal:hover { background: color-mix(in srgb, var(--goal) 74%, #000 26%); }
+[data-theme="dark"] .day.super:hover, [data-theme="dark"] .mini.super:hover { background: color-mix(in srgb, var(--super) 74%, #000 26%); }
 
 .yearWrap { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
 .monthBlock { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fbfefc; }
 .monthJump { width: 100%; text-align: left; font-family: "Iowan Old Style", serif; font-size: 16px; margin-bottom: 6px; }
 .monthMiniGrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.ghEmpty { opacity: 0.35; pointer-events: none; }
 .mini { height: 12px; padding: 0; border-radius: 3px; }
-.lineWrap { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fbfffc; }
+[data-theme="dark"] .monthBlock { background: var(--month-block-bg); border-color: #394a42; }
+[data-theme="dark"] .monthJump { background: #2a3a33; border-color: #42564d; color: var(--button-text); }
+[data-theme="dark"] .mini { border-color: transparent; }
+[data-theme="dark"] .ghEmpty { background: var(--mini-empty-bg); opacity: 0.7; }
+.lineWrap { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: color-mix(in srgb, var(--paper) 90%, #ffffff 10%); }
 .lineChartAlt { width: 100%; height: 200px; }
-.lineAxis { display: flex; justify-content: space-between; gap: 4px; font-size: 10px; color: var(--muted); margin-top: 4px; }
-.lineAxis span { min-width: 0; }
 
 .hoverTip {
   position: fixed;
   z-index: 30;
   pointer-events: none;
-  background: #ffffff;
-  border: 1px solid #cfe1d5;
+  background: var(--paper);
+  border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: var(--shadow);
   padding: 8px 10px;
@@ -63,10 +138,17 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .hoverTip span { font-size: 12px; color: var(--muted); font-style: normal; }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 12px; }
+.streakGrid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 11px; }
+.streakCard { min-height: 136px; display: grid; grid-template-rows: auto auto auto; padding: 12px 14px; row-gap: 5px; align-content: start; }
+.streakCard h3 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+.streakCard p { margin: 4px 0 0; font-size: 25px; line-height: 1.2; }
+.streakCard small { display: block; margin-top: 2px; font-size: 12px; }
 .secondaryStats { grid-template-columns: 1fr 1fr; }
 .stats h3 { margin: 0; color: var(--muted); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
 .stats p { margin: 8px 0 0; font-size: 21px; line-height: 1.35; }
 .stats small { color: var(--muted); }
+.statInline { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.statInline small { font-size: 13px; opacity: 0.85; }
 .clickableCard { cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; }
 .clickableCard:hover { transform: translateY(-1px); box-shadow: 0 14px 26px rgba(31,56,42,0.12); }
 
@@ -75,20 +157,27 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .hBarRow { display: grid; grid-template-columns: 44px 1fr 76px; align-items: center; gap: 10px; }
 .hBarTrack { background: #e5eee8; border-radius: 10px; height: 12px; overflow: hidden; }
 .hBarFill { background: linear-gradient(90deg, #79be98, #2f7f61); height: 100%; }
+[data-theme="dark"] .hBarTrack { background: #2a3731; }
+[data-theme="dark"] .hBarFill { background: linear-gradient(90deg, #6ea786, #4f815f); }
 .hourHist { height: 160px; border: 1px solid var(--line); border-radius: 10px; background: #fbfffc; display: grid; grid-template-columns: repeat(24,1fr); align-items: end; gap: 4px; padding: 10px 6px; }
 .hourCol { height: 100%; display: flex; align-items: flex-end; }
 .hourBar { width: 100%; background: linear-gradient(180deg, #8ec6a6, #2f7f61); border-radius: 4px 4px 2px 2px; min-height: 6px; }
+.hourCol.isHovered .hourBar { filter: saturate(1.15) brightness(1.08); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent); }
 .hourTicks { display: grid; grid-template-columns: repeat(24,1fr); font-size: 10px; color: var(--muted); margin-top: 4px; }
 .hourTicks span { text-align: center; }
 .hourTicks .major { color: #355f49; font-weight: 600; }
 .hourTicks .minor { opacity: .55; }
+[data-theme="dark"] .hourHist { background: var(--hour-chart-bg); border-color: #3a4b43; }
+[data-theme="dark"] .hourBar { background: linear-gradient(180deg, var(--hour-bar-start), var(--hour-bar-end)); }
+[data-theme="dark"] .hourTicks .major { color: #d9d3c3; }
+[data-theme="dark"] .hourTicks .minor { color: #a8b29f; opacity: .75; }
 .axisLabel { color: var(--muted); font-size: 12px; }
 .hourTooltip {
   position: fixed;
   pointer-events: none;
   z-index: 30;
-  background: #ffffff;
-  border: 1px solid #cfe1d5;
+  background: var(--paper);
+  border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
   padding: 6px 8px;
@@ -96,12 +185,1138 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   display: flex;
   flex-direction: column;
 }
+[data-theme="dark"] .hourTooltip strong { color: #f2ede1; }
+[data-theme="dark"] .hourTooltip span { color: #c2cbba; }
 
 .modal { position: fixed; inset: 0; background: rgba(30, 45, 37, 0.32); display: grid; place-items: center; padding: 14px; }
-.modalCard { width: min(460px, 92vw); background: #fffffd; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px; }
+[data-theme="dark"] .modal { background: rgba(5, 11, 8, 0.72); }
+.modalNoBackdrop, [data-theme="dark"] .modalNoBackdrop { background: transparent !important; backdrop-filter: none; }
+.modalCard { width: min(500px, 92vw); max-height: 88vh; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 12px 14px; }
 .modalCard h3 { margin-top: 0; font-family: "Iowan Old Style", serif; }
 .modalCard ul { margin: 8px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; }
 .modalCloseX { position: absolute; top: 10px; right: 12px; border: none; background: transparent; font-size: 24px; line-height: 1; padding: 0; }
-.modalCard { position: relative; padding-right: 30px; }
+.modalCard { position: relative; }
+.detailCard p { margin: 7px 0; line-height: 1.4; }
+.trendDetailCard p + p { margin-top: 6px; }
 
-@media (max-width: 900px) { .yearWrap { grid-template-columns: repeat(2, minmax(0,1fr)); } .secondaryStats { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  .yearWrap { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .secondaryStats { grid-template-columns: 1fr; }
+  .statInline { white-space: normal; flex-wrap: wrap; gap: 6px; }
+}
+
+.projectBar {
+  justify-self: center;
+  align-self: center;
+  max-width: min(520px, 100%);
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 78%, var(--accent-soft) 22%);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.08);
+}
+.projectBar.soon { border-color: #d5b66c; background: color-mix(in srgb, var(--paper) 68%, #f2d486 32%); }
+.projectBar.today { border-color: #c8942f; background: color-mix(in srgb, var(--paper) 58%, #e3b85a 42%); }
+.projectBar.overdue { border-color: #c98282; background: color-mix(in srgb, var(--paper) 62%, #d98c8c 38%); }
+.projectBar.empty, .projectBar.loading, .projectBar.unavailable { color: var(--muted); }
+.projectBar.unavailable { border-style: dashed; background: color-mix(in srgb, var(--paper) 86%, var(--accent-soft) 14%); }
+.day, .mini { position: relative; }
+.day.hasDue .dueMarker, .mini.hasDue .dueMarker {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6d8f72;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--paper) 85%, transparent);
+  color: #fff;
+  font-size: 8px;
+  line-height: 10px;
+  text-align: center;
+}
+.day.due-today .dueMarker, .mini.due-today .dueMarker { background: #c8942f; width: 10px; height: 10px; }
+.day.due-overdue .dueMarker, .mini.due-overdue .dueMarker { background: #b85f61; width: 10px; height: 10px; }
+.mini.hasDue .dueMarker { right: -2px; bottom: -2px; width: 5px; height: 5px; font-size: 0; line-height: 0; }
+.mini.due-today .dueMarker, .mini.due-overdue .dueMarker { width: 6px; height: 6px; }
+.dayDeadlineList { margin: 10px 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.dayDeadlineList ul { max-height: none; margin-top: 5px; }
+.projectsShell { display: grid; gap: 14px; }
+.projectsHeader { display: grid; gap: 10px; }
+.projectsHeader h1 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 42px; }
+.projectsIntro { margin: 4px 0 0; color: var(--muted); max-width: 640px; }
+.backLink { color: var(--accent); text-decoration: none; font-weight: 700; }
+.eyebrow { margin: 0 0 5px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.projectNotice { color: var(--muted); }
+.projectFormPanel h2, .projectsList h2 { margin: 0 0 10px; font-family: "Iowan Old Style", "Times New Roman", serif; }
+.projectForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.projectForm label, .projectCard label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.projectForm input, .projectForm select, .projectForm textarea, .projectCard input, .projectCard textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 9px 10px;
+  font: inherit;
+}
+.projectForm textarea, .projectCard textarea { min-height: 74px; resize: vertical; }
+.projectForm .wide { grid-column: 1 / -1; }
+.projectsList { display: grid; gap: 10px; }
+.projectCard { display: grid; gap: 9px; }
+.projectCardTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.projectCardTop h3 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 23px; }
+.projectCardTop strong { white-space: nowrap; color: var(--accent); }
+.projectCard.soon { border-color: #d5b66c; }
+.projectCard.today { border-color: #c8942f; box-shadow: 0 10px 24px rgba(200, 148, 47, 0.14); }
+.projectCard.overdue { border-color: #c98282; }
+.projectMeta { color: var(--muted); }
+.projectTitleInput { font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 22px; }
+.projectActions, .rolloverBox { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rolloverBox { padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.rolloverBox p { width: 100%; margin: 0; font-weight: 700; }
+.completedProjects { margin-top: 8px; }
+.projectCard.completed { opacity: 0.82; }
+.emptyProject { color: var(--muted); }
+[data-theme="dark"] .projectBar { background: color-mix(in srgb, var(--paper) 78%, var(--accent-soft) 22%); box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22); }
+[data-theme="dark"] .projectBar.soon { background: color-mix(in srgb, var(--paper) 72%, #7c6126 28%); }
+[data-theme="dark"] .projectBar.today { background: color-mix(in srgb, var(--paper) 65%, #9a742c 35%); }
+[data-theme="dark"] .projectBar.overdue { background: color-mix(in srgb, var(--paper) 68%, #7f3d42 32%); }
+[data-theme="dark"] .day.hasDue .dueMarker, [data-theme="dark"] .mini.hasDue .dueMarker { box-shadow: 0 0 0 1px rgba(12, 18, 15, 0.9); }
+[data-theme="dark"] .projectForm input, [data-theme="dark"] .projectForm select, [data-theme="dark"] .projectForm textarea, [data-theme="dark"] .projectCard input, [data-theme="dark"] .projectCard textarea { background: #223029; }
+
+@media (min-width: 720px) {
+  .hero { display: grid; grid-template-columns: auto minmax(160px, 1fr) auto; column-gap: 14px; }
+}
+
+@media (max-width: 720px) {
+  .hero { flex-wrap: wrap; gap: 10px; }
+  .projectBar { order: 3; width: 100%; max-width: none; text-align: center; }
+  .projectForm { grid-template-columns: 1fr; }
+  .projectCardTop { flex-direction: column; }
+}
+
+.streakBadge { gap: 6px; padding: 7px 12px; }
+.flame { width: 18px; transform: translateY(-0.5px); }
+.streakCount { min-width: 14px; line-height: 1; font-variant-numeric: tabular-nums; transform: translateY(0.5px); }
+.projectsHeaderRow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+@media (max-width: 720px) { .projectsHeaderRow { align-items: center; } }
+
+/* Projects polish pass */
+.projectBar {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line) 74%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 86%, #ffffff 14%), color-mix(in srgb, var(--accent-soft) 72%, var(--paper) 28%));
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(31, 56, 42, 0.12);
+}
+.projectBar.soon { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 70%, #f4dc95 30%), #f1d689); border-color: #cda84f; }
+.projectBar.today { background: linear-gradient(135deg, #f5d579, #ddb04d); border-color: #b88223; color: #4f3712; }
+.projectBar.overdue { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 64%, #d98c8c 36%), #d9a0a0); border-color: #b86b70; color: #5b2e31; }
+.projectBar.unavailable { background: color-mix(in srgb, var(--paper) 88%, var(--accent-soft) 12%); }
+.projectsHeader { padding: 10px 0 2px; }
+.projectsHeaderRow { align-items: center; }
+.projectsHeaderActions { display: inline-flex; align-items: center; gap: 9px; }
+.newProjectButton, .secondaryProjectButton, .archiveToggle {
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line) 68%);
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--paper) 42%);
+  color: var(--ink);
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.08);
+  font-weight: 700;
+}
+.newProjectButton { min-height: 38px; padding: 8px 16px; }
+.secondaryProjectButton { min-height: 34px; padding: 7px 13px; }
+.projectsSectionHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.projectsSectionHeader h2 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 25px; }
+.activeProjectsList { gap: 12px; }
+.projectCard {
+  border-left: 4px solid color-mix(in srgb, var(--accent) 34%, var(--line) 66%);
+  background: linear-gradient(135deg, var(--paper), color-mix(in srgb, var(--accent-soft) 28%, var(--paper) 72%));
+}
+.projectCardFeature { padding: 16px 18px; box-shadow: 0 14px 30px rgba(31, 56, 42, 0.12); }
+.projectCard.soon { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #f2d486 34%, var(--paper) 66%)); border-left-color: #cda84f; }
+.projectCard.today { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 74%, #f3d070 26%), color-mix(in srgb, #e0b24d 32%, var(--paper) 68%)); border-left-color: #b88223; }
+.projectCard.overdue { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #d98c8c 34%, var(--paper) 66%)); border-left-color: #b86b70; }
+.deadlinePill { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 11px; border-radius: 999px; background: color-mix(in srgb, var(--accent-soft) 68%, var(--paper) 32%); }
+.projectCard.soon .deadlinePill { background: color-mix(in srgb, #f2d486 56%, var(--paper) 44%); color: #6e5117; }
+.projectCard.today .deadlinePill { background: #e2b44f; color: #4f3712; }
+.projectCard.overdue .deadlinePill { background: color-mix(in srgb, #d98c8c 58%, var(--paper) 42%); color: #653237; }
+.projectComposer { border-color: color-mix(in srgb, var(--accent) 24%, var(--line) 76%); box-shadow: 0 14px 30px rgba(31, 56, 42, 0.10); }
+.milestoneComposer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.milestoneComposer h3 { margin: 0 0 10px; font-family: "Iowan Old Style", "Times New Roman", serif; }
+.completedProjects { gap: 8px; }
+.archiveToggle { width: 100%; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 10px 14px; text-align: left; background: color-mix(in srgb, var(--paper) 78%, var(--accent-soft) 22%); box-shadow: none; }
+.archiveToggle small { color: var(--muted); font-weight: 600; }
+.projectCard.completed { border-left-color: var(--line); background: color-mix(in srgb, var(--paper) 88%, var(--accent-soft) 12%); box-shadow: none; }
+[data-theme="dark"] .projectBar { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 82%, #33473d 18%), color-mix(in srgb, var(--accent-soft) 60%, var(--paper) 40%)); border-color: #4c6b5e; }
+[data-theme="dark"] .projectBar.soon { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 72%, #80652b 28%), #5b4622); border-color: #9d7d34; }
+[data-theme="dark"] .projectBar.today { background: linear-gradient(135deg, #7b5d24, #a8792d); border-color: #d0a04a; color: #f8edd1; }
+[data-theme="dark"] .projectBar.overdue { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 68%, #7f3d42 32%), #653239); border-color: #a65f67; color: #f4dddd; }
+[data-theme="dark"] .newProjectButton, [data-theme="dark"] .secondaryProjectButton, [data-theme="dark"] .archiveToggle { background: color-mix(in srgb, var(--paper) 74%, var(--accent-soft) 26%); border-color: #4c6b5e; }
+[data-theme="dark"] .projectCard { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, var(--accent-soft) 26%, var(--paper) 74%)); }
+[data-theme="dark"] .projectCard.soon { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #7c6126 28%, var(--paper) 72%)); }
+[data-theme="dark"] .projectCard.today { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 74%, #7b5d24 26%), color-mix(in srgb, #9a742c 28%, var(--paper) 72%)); }
+[data-theme="dark"] .projectCard.overdue { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #7f3d42 30%, var(--paper) 70%)); }
+[data-theme="dark"] .projectCard.completed { background: color-mix(in srgb, var(--paper) 90%, var(--accent-soft) 10%); }
+[data-theme="dark"] .deadlinePill { background: color-mix(in srgb, var(--accent-soft) 58%, var(--paper) 42%); }
+[data-theme="dark"] .projectCard.soon .deadlinePill { background: #5f4a22; color: #f2ddb0; }
+[data-theme="dark"] .projectCard.today .deadlinePill { background: #a8792d; color: #fff1d1; }
+[data-theme="dark"] .projectCard.overdue .deadlinePill { background: #6f3a40; color: #f5dddd; }
+
+@media (min-width: 720px) {
+  .hero { grid-template-columns: minmax(220px, 1fr) minmax(280px, 560px) minmax(120px, 1fr); align-items: center; }
+  .heroActions { justify-self: end; }
+  .projectBar { width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .projectsHeaderRow, .projectsSectionHeader { align-items: flex-start; flex-direction: column; }
+  .projectsHeaderActions { width: 100%; justify-content: space-between; }
+  .newProjectButton { flex: 1; }
+  .archiveToggle { grid-template-columns: 1fr auto auto; }
+}
+
+/* Deadline Compass refinement */
+.projectBar { gap: 7px; min-height: 42px; padding: 10px 20px; }
+.projectBarName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projectBarSep, .projectBarDate { opacity: 0.72; font-weight: 600; }
+.projectBar strong { white-space: nowrap; font-weight: 800; }
+.projectBar.future { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 76%, #b8d9c4 24%), color-mix(in srgb, #d6eadc 62%, var(--paper) 38%)); border-color: #8eb69c; }
+.projectBar.approaching { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 70%, #d6d99a 30%), color-mix(in srgb, #e6dda0 70%, var(--paper) 30%)); border-color: #b9aa57; color: #4f4518; }
+.addChoiceRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 4px 0 14px; }
+.addChoice { min-height: 90px; border-radius: 16px; border: 1px solid var(--line); background: linear-gradient(135deg, var(--paper), color-mix(in srgb, var(--accent-soft) 34%, var(--paper) 66%)); color: var(--ink); display: grid; align-content: center; gap: 4px; text-align: left; padding: 14px 16px; box-shadow: 0 10px 22px rgba(31, 56, 42, 0.08); }
+.addChoice strong { font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 19px; }
+.addChoice span { color: var(--muted); font-size: 13px; line-height: 1.35; }
+.addChoice.active { border-color: color-mix(in srgb, var(--accent) 56%, var(--line) 44%); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-soft) 58%, transparent); }
+.addChoice:disabled { opacity: 0.56; cursor: not-allowed; }
+.projectCard.future { border-left-color: #8eb69c; }
+.projectCard.approaching { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #e6dda0 30%, var(--paper) 70%)); border-left-color: #b9aa57; }
+.projectCard.approaching .deadlinePill { background: color-mix(in srgb, #e6dda0 54%, var(--paper) 46%); color: #5b4f18; }
+[data-theme="dark"] .projectBar.future { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 76%, #41634f 24%), color-mix(in srgb, #385141 56%, var(--paper) 44%)); border-color: #5f8b70; }
+[data-theme="dark"] .projectBar.approaching { background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 72%, #6f6129 28%), #514925); border-color: #92823d; color: #f1e8c6; }
+[data-theme="dark"] .addChoice { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, var(--accent-soft) 26%, var(--paper) 74%)); border-color: #394a42; box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22); }
+[data-theme="dark"] .addChoice.active { border-color: #6b917b; box-shadow: 0 0 0 2px rgba(98, 132, 112, 0.32); }
+[data-theme="dark"] .projectCard.future { border-left-color: #5f8b70; }
+[data-theme="dark"] .projectCard.approaching { background: linear-gradient(135deg, var(--paper), color-mix(in srgb, #6f6129 25%, var(--paper) 75%)); border-left-color: #92823d; }
+[data-theme="dark"] .projectCard.approaching .deadlinePill { background: #514925; color: #f1e8c6; }
+@media (max-width: 560px) {
+  .projectBar { flex-wrap: wrap; justify-content: center; row-gap: 2px; }
+  .projectBarName { max-width: 100%; }
+  .addChoiceRow { grid-template-columns: 1fr; }
+}
+
+/* Deadline Compass interaction polish */
+.hero h1 { white-space: nowrap; }
+.projectBar { font-size: 15px; line-height: 1.15; font-weight: 500; background: color-mix(in srgb, var(--paper) 58%, var(--accent-soft) 42%); }
+.projectBarName { font-weight: 500; }
+.projectBarDate { white-space: nowrap; font-weight: 800; opacity: 1; }
+.projectBarSep { opacity: 0.58; }
+.projectBar.future { background: color-mix(in srgb, #d8eadf 72%, var(--paper) 28%); }
+.projectBar.approaching { background: color-mix(in srgb, #e9dfa6 72%, var(--paper) 28%); }
+.projectBar.soon { background: color-mix(in srgb, #f0d47c 78%, var(--paper) 22%); }
+.projectBar.today { background: color-mix(in srgb, #e3b64d 86%, var(--paper) 14%); }
+.projectBar.overdue { background: color-mix(in srgb, #d79a9a 76%, var(--paper) 24%); }
+.compactProjectsHeader { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.backLink { display: inline-flex; align-items: center; min-height: 40px; padding: 7px 12px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line) 76%); border-radius: 999px; background: color-mix(in srgb, var(--paper) 74%, var(--accent-soft) 26%); font-size: 18px; }
+.newProjectButton { display: inline-flex; align-items: center; justify-content: center; text-align: center; background: color-mix(in srgb, #dcefe2 70%, var(--paper) 30%); border-color: #91b99f; }
+.projectCard { cursor: pointer; grid-template-columns: minmax(210px, 1.15fr) minmax(160px, 0.85fr) auto; align-items: center; column-gap: 16px; }
+.projectCard.isEditing { cursor: default; align-items: start; }
+.projectMain h3 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 23px; }
+.projectNameInput { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+.projectNotes { color: var(--muted); font-size: 14px; line-height: 1.35; }
+.projectNotes p { margin: 0; }
+.projectNotes span { opacity: 0.72; font-style: italic; }
+.projectStatus { display: grid; justify-items: end; gap: 8px; }
+.completeButton { min-height: 30px; padding: 5px 11px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line) 62%); background: color-mix(in srgb, var(--paper) 70%, #dcefe2 30%); color: var(--accent); font-weight: 800; }
+.completeButton:hover, .completeButton:focus-visible { background: color-mix(in srgb, #dcefe2 72%, var(--paper) 28%); }
+[data-theme="dark"] .projectBar { background: color-mix(in srgb, var(--paper) 62%, var(--accent-soft) 38%); }
+[data-theme="dark"] .projectBar.future { background: color-mix(in srgb, #385141 58%, var(--paper) 42%); }
+[data-theme="dark"] .projectBar.approaching { background: color-mix(in srgb, #514925 58%, var(--paper) 42%); color: #f1e8c6; }
+[data-theme="dark"] .projectBar.soon { background: color-mix(in srgb, #5b4622 64%, var(--paper) 36%); }
+[data-theme="dark"] .projectBar.today { background: color-mix(in srgb, #a8792d 70%, var(--paper) 30%); color: #fff1d1; }
+[data-theme="dark"] .projectBar.overdue { background: color-mix(in srgb, #653239 68%, var(--paper) 32%); color: #f4dddd; }
+[data-theme="dark"] .backLink { background: color-mix(in srgb, var(--paper) 76%, var(--accent-soft) 24%); border-color: #4c6b5e; }
+[data-theme="dark"] .newProjectButton { background: color-mix(in srgb, #385141 42%, var(--paper) 58%); border-color: #5f8b70; }
+[data-theme="dark"] .completeButton { background: color-mix(in srgb, #385141 32%, var(--paper) 68%); border-color: #5f8b70; color: #dcefe2; }
+[data-theme="dark"] .completeButton:hover, [data-theme="dark"] .completeButton:focus-visible { background: color-mix(in srgb, #385141 48%, var(--paper) 52%); }
+@media (min-width: 720px) {
+  .hero { grid-template-columns: minmax(280px, 0.85fr) minmax(320px, 560px) minmax(120px, 0.85fr); }
+}
+@media (max-width: 820px) {
+  .projectCard { grid-template-columns: 1fr; align-items: start; }
+  .projectStatus { justify-items: start; grid-auto-flow: column; align-items: center; justify-content: space-between; width: 100%; }
+}
+
+/* Projects cleanup pass */
+.projectBar { justify-self: center; width: auto; max-width: min(500px, 100%); min-height: 36px; padding: 7px 13px; font-size: 15.5px; box-shadow: 0 8px 18px rgba(31, 56, 42, 0.10); }
+.projectBar strong, .projectBarDate { font-weight: 800; }
+.projectBarDate { opacity: 1; }
+.streakGrid { gap: 8px; }
+.streakCard { min-height: 98px; padding: 10px 12px; row-gap: 2px; }
+.streakCard h3 { font-size: 10.5px; }
+.streakCard p { margin: 1px 0 0; font-size: 22px; line-height: 1.08; }
+.streakCard small { margin-top: 0; line-height: 1.25; }
+.newProjectButton { outline: none; box-shadow: 0 6px 14px rgba(31, 56, 42, 0.10); background: color-mix(in srgb, var(--paper) 58%, #d8eadf 42%); border-color: #a8c7b3; color: var(--ink); }
+.newProjectButton:hover, .newProjectButton:focus-visible { background: color-mix(in srgb, var(--paper) 44%, #d8eadf 56%); box-shadow: 0 0 0 2px color-mix(in srgb, #d8eadf 72%, transparent); }
+.backLink { box-shadow: 0 6px 14px rgba(31, 56, 42, 0.08); }
+.projectCard.isEditing { grid-template-columns: 1fr; gap: 10px; }
+.projectCard.isEditing .projectMain { display: grid; gap: 8px; }
+.projectCard.isEditing .projectNotes textarea { min-height: 80px; }
+.projectNameInput, .projectTitleInput, .projectNotes textarea, .projectMeta input { box-sizing: border-box; max-width: 100%; }
+.projectNotes:empty { display: none; }
+.projectStatus { align-self: stretch; align-content: center; }
+.completeButton { display: none; }
+.completeCheck { width: 34px; height: 34px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--accent) 44%, var(--line) 56%); background: color-mix(in srgb, var(--paper) 78%, transparent); color: transparent; display: inline-flex; align-items: center; justify-content: center; padding: 0; transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, border-color 0.15s ease; }
+.completeCheck:hover, .completeCheck:focus-visible { background: color-mix(in srgb, #d8eadf 76%, var(--paper) 24%); border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.rolloverBox { grid-column: 1 / -1; gap: 8px; }
+.rolloverBox button { min-width: 70px; }
+.projectCard.completed { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 14px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--line) 82%, var(--accent-soft) 18%); border-left: 3px solid color-mix(in srgb, var(--line) 72%, var(--accent) 28%); background: color-mix(in srgb, var(--paper) 72%, var(--accent-soft) 28%); opacity: 0.9; }
+.projectCard.completed h3 { margin: 0; font-size: 18px; }
+.projectCard.completed p:last-child { margin: 0; color: var(--muted); font-size: 13px; text-align: right; }
+[data-theme="dark"] .newProjectButton { background: color-mix(in srgb, var(--paper) 68%, #385141 32%); border-color: #587a66; color: var(--ink); }
+[data-theme="dark"] .newProjectButton:hover, [data-theme="dark"] .newProjectButton:focus-visible { background: color-mix(in srgb, var(--paper) 54%, #385141 46%); box-shadow: 0 0 0 2px rgba(95, 139, 112, 0.24); }
+[data-theme="dark"] .completeCheck { background: color-mix(in srgb, var(--paper) 82%, transparent); border-color: #5f8b70; }
+[data-theme="dark"] .completeCheck:hover, [data-theme="dark"] .completeCheck:focus-visible { background: color-mix(in srgb, #385141 68%, var(--paper) 32%); color: #dcefe2; }
+[data-theme="dark"] .projectCard.completed { background: color-mix(in srgb, var(--paper) 82%, var(--accent-soft) 18%); border-color: #34453d; }
+@media (min-width: 720px) { .hero { grid-template-columns: minmax(280px, max-content) minmax(260px, 500px) minmax(120px, 1fr); } }
+@media (max-width: 560px) { .projectBar { padding-inline: 11px; } .projectCard.completed { grid-template-columns: 1fr; } .projectCard.completed p:last-child { text-align: left; } }
+
+/* Deadline Compass correction pass */
+.hero h1 { white-space: nowrap; min-width: max-content; }
+.projectBar {
+  width: auto;
+  max-width: min(460px, 100%);
+  min-height: 34px;
+  padding: 7px 12px;
+  gap: 6px;
+  font-size: 15px;
+  line-height: 1.15;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, var(--accent) 30%);
+  background: color-mix(in srgb, var(--paper) 56%, var(--accent-soft) 44%);
+  background-image: none !important;
+}
+.projectBarName { font-weight: 500; }
+.projectBarSep { opacity: 0.55; font-weight: 500; }
+.projectBar strong, .projectBarDate { font-weight: 800; }
+.projectBar.future { background: color-mix(in srgb, #d9eadf 74%, var(--paper) 26%); border-color: #9bbda8; }
+.projectBar.approaching { background: color-mix(in srgb, #e7dda2 72%, var(--paper) 28%); border-color: #c0ac5e; color: #4f4518; }
+.projectBar.soon { background: color-mix(in srgb, #edd17a 76%, var(--paper) 24%); border-color: #c49a3e; color: #503b12; }
+.projectBar.today { background: color-mix(in srgb, #e4b449 84%, var(--paper) 16%); border-color: #b88022; color: #49320e; }
+.projectBar.overdue { background: color-mix(in srgb, #d89594 70%, var(--paper) 30%); border-color: #b96a70; color: #552d31; }
+
+.deadlinesHeader {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(240px, auto) minmax(170px, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+.deadlinesHeader h1 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: clamp(32px, 5vw, 56px);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.journalTodayBubble {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, var(--accent) 28%);
+  background: color-mix(in srgb, var(--paper) 58%, var(--accent-soft) 42%);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.10);
+}
+.deadlinesHeader .projectsHeaderActions { justify-self: end; }
+
+.newProjectButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0 !important;
+  outline: none;
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.14);
+  background: color-mix(in srgb, #d9eadf 64%, var(--paper) 36%);
+  color: var(--accent);
+  text-align: center;
+}
+.newProjectButton:hover, .newProjectButton:focus-visible {
+  background: color-mix(in srgb, #d9eadf 78%, var(--paper) 22%);
+  box-shadow: 0 10px 22px rgba(31, 56, 42, 0.18);
+}
+
+.projectCard {
+  grid-template-columns: minmax(220px, 1.15fr) minmax(180px, 0.85fr) minmax(142px, auto);
+  align-items: center;
+  gap: 14px;
+  background-image: none !important;
+  border-left: 4px solid color-mix(in srgb, var(--accent) 34%, var(--line) 66%);
+}
+.projectCard.future { background: color-mix(in srgb, #e0efe5 70%, var(--paper) 30%); border-left-color: #8fb79c; }
+.projectCard.approaching { background: color-mix(in srgb, #eee6b8 70%, var(--paper) 30%); border-left-color: #b8a455; }
+.projectCard.soon { background: color-mix(in srgb, #f2dda0 74%, var(--paper) 26%); border-left-color: #c59a3d; }
+.projectCard.today { background: color-mix(in srgb, #edcc75 78%, var(--paper) 22%); border-left-color: #b88022; }
+.projectCard.overdue { background: color-mix(in srgb, #e0aaa8 72%, var(--paper) 28%); border-left-color: #b96a70; }
+.projectCard .projectMain h3, .projectCard .projectNotes p { transition: text-decoration-color 0.16s ease, opacity 0.16s ease; }
+.projectCard.completionPreview .projectMain h3,
+.projectCard.completionPreview .projectNotes p { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: color-mix(in srgb, var(--accent) 56%, transparent); opacity: 0.72; }
+.projectNotes { align-self: center; color: color-mix(in srgb, var(--ink) 72%, var(--muted) 28%); }
+.projectStatus.completeStatus {
+  justify-self: end;
+  align-self: stretch;
+  min-width: 142px;
+  display: grid;
+  justify-items: end;
+  align-content: center;
+  gap: 3px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--paper) 62%, transparent);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 78%, transparent);
+  cursor: pointer;
+  text-align: right;
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+.projectStatus.completeStatus:hover, .projectStatus.completeStatus:focus-visible {
+  background: color-mix(in srgb, #d9eadf 64%, var(--paper) 36%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent), 0 8px 16px rgba(31, 56, 42, 0.12);
+  transform: translateY(-1px);
+}
+.statusDate { font-size: 12px; color: var(--muted); font-weight: 700; }
+.completeHint { font-size: 11px; color: var(--accent); font-weight: 800; opacity: 0; transform: translateY(-2px); transition: opacity 0.16s ease, transform 0.16s ease; }
+.completeStatus:hover .completeHint, .completeStatus:focus-visible .completeHint { opacity: 1; transform: translateY(0); }
+.completionPrompt { justify-content: center; align-items: center; text-align: center; }
+.completionPrompt p { flex-basis: 100%; margin: 0 0 2px; }
+.completionPrompt button { border-radius: 999px; }
+.completeCheck, .completeButton { display: none !important; }
+
+.archiveToggle {
+  width: auto;
+  justify-self: center;
+  margin-inline: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 64%, var(--accent-soft) 36%);
+  color: var(--accent);
+  box-shadow: 0 6px 14px rgba(31, 56, 42, 0.10);
+  font-weight: 800;
+}
+.projectCard.completed {
+  background: color-mix(in srgb, var(--paper) 66%, var(--accent-soft) 34%);
+  border-left-color: color-mix(in srgb, var(--accent) 22%, var(--line) 78%);
+  opacity: 0.92;
+}
+
+.day.hasDue .dueMarker, .mini.hasDue .dueMarker {
+  position: absolute;
+  width: 9px;
+  height: 12px;
+  right: 4px;
+  bottom: 4px;
+  border-radius: 2px 2px 1px 1px;
+  background: #c8942f;
+  box-shadow: 0 0 0 1px rgba(255, 250, 236, 0.72), 0 1px 3px rgba(65, 43, 10, 0.22);
+  color: transparent;
+  font-size: 0;
+}
+.day.hasDue .dueMarker::after, .mini.hasDue .dueMarker::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  border-top: 4px solid #c8942f;
+  border-right: 5px solid transparent;
+}
+.day.due-today .dueMarker, .mini.due-today .dueMarker { background: #d99b24; }
+.day.due-today .dueMarker::after, .mini.due-today .dueMarker::after { border-top-color: #d99b24; }
+.day.due-overdue .dueMarker, .mini.due-overdue .dueMarker { background: #b85f61; }
+.day.due-overdue .dueMarker::after, .mini.due-overdue .dueMarker::after { border-top-color: #b85f61; }
+.mini.hasDue .dueMarker { width: 6px; height: 8px; right: 1px; bottom: 1px; }
+.mini.hasDue .dueMarker::after { bottom: -3px; border-top-width: 3px; border-right-width: 4px; }
+.dayDeadlineList { margin: 4px 0 8px; }
+.dayDeadlineList ul { margin: 0; padding-left: 18px; }
+.dayDeadlineList li { color: var(--accent); font-weight: 700; }
+
+[data-theme="dark"] .projectBar { background: color-mix(in srgb, var(--paper) 58%, var(--accent-soft) 42%); border-color: #4c6b5e; }
+[data-theme="dark"] .projectBar.future { background: color-mix(in srgb, #385141 60%, var(--paper) 40%); border-color: #5f8b70; }
+[data-theme="dark"] .projectBar.approaching { background: color-mix(in srgb, #514925 62%, var(--paper) 38%); border-color: #92823d; color: #f1e8c6; }
+[data-theme="dark"] .projectBar.soon { background: color-mix(in srgb, #5b4622 66%, var(--paper) 34%); border-color: #a57f35; color: #f5e8bf; }
+[data-theme="dark"] .projectBar.today { background: color-mix(in srgb, #8d6727 76%, var(--paper) 24%); border-color: #d0a04a; color: #fff1d1; }
+[data-theme="dark"] .projectBar.overdue { background: color-mix(in srgb, #653239 70%, var(--paper) 30%); border-color: #a65f67; color: #f4dddd; }
+[data-theme="dark"] .journalTodayBubble { background: color-mix(in srgb, var(--paper) 64%, var(--accent-soft) 36%); border-color: #4c6b5e; color: var(--ink); }
+[data-theme="dark"] .newProjectButton { background: color-mix(in srgb, #385141 48%, var(--paper) 52%); color: var(--ink); }
+[data-theme="dark"] .newProjectButton:hover, [data-theme="dark"] .newProjectButton:focus-visible { background: color-mix(in srgb, #385141 64%, var(--paper) 36%); }
+[data-theme="dark"] .projectCard.future { background: color-mix(in srgb, #385141 46%, var(--paper) 54%); border-left-color: #5f8b70; }
+[data-theme="dark"] .projectCard.approaching { background: color-mix(in srgb, #514925 48%, var(--paper) 52%); border-left-color: #92823d; }
+[data-theme="dark"] .projectCard.soon { background: color-mix(in srgb, #5b4622 54%, var(--paper) 46%); border-left-color: #a57f35; }
+[data-theme="dark"] .projectCard.today { background: color-mix(in srgb, #8d6727 62%, var(--paper) 38%); border-left-color: #d0a04a; }
+[data-theme="dark"] .projectCard.overdue { background: color-mix(in srgb, #653239 58%, var(--paper) 42%); border-left-color: #a65f67; }
+[data-theme="dark"] .projectStatus.completeStatus { background: rgba(255, 247, 224, 0.04); box-shadow: inset 0 0 0 1px rgba(232, 222, 200, 0.12); }
+[data-theme="dark"] .projectStatus.completeStatus:hover, [data-theme="dark"] .projectStatus.completeStatus:focus-visible { background: color-mix(in srgb, #385141 56%, var(--paper) 44%); box-shadow: inset 0 0 0 1px rgba(146, 184, 157, 0.34), 0 10px 20px rgba(0, 0, 0, 0.22); }
+[data-theme="dark"] .archiveToggle { background: color-mix(in srgb, var(--paper) 72%, var(--accent-soft) 28%); color: var(--ink); }
+[data-theme="dark"] .projectCard.completed { background: color-mix(in srgb, var(--paper) 76%, var(--accent-soft) 24%); }
+[data-theme="dark"] .day.hasDue .dueMarker, [data-theme="dark"] .mini.hasDue .dueMarker { box-shadow: 0 0 0 1px rgba(12, 18, 15, 0.92), 0 1px 4px rgba(0, 0, 0, 0.34); }
+
+@media (min-width: 720px) {
+  .hero { grid-template-columns: minmax(250px, max-content) minmax(240px, 460px) minmax(120px, 1fr); }
+}
+@media (max-width: 820px) {
+  .deadlinesHeader { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .deadlinesHeader .projectsHeaderActions { justify-self: center; }
+  .projectCard { grid-template-columns: 1fr; align-items: stretch; }
+  .projectStatus.completeStatus { justify-self: stretch; justify-items: start; text-align: left; min-width: 0; }
+}
+@media (max-width: 560px) {
+  .hero h1 { min-width: 0; }
+  .projectBar { max-width: 100%; font-size: 14px; padding-inline: 10px; }
+}
+
+/* Focused Deadlines UI correction pass */
+@media (min-width: 720px) {
+  .hero { grid-template-columns: minmax(0, 1fr) minmax(240px, 460px) minmax(0, 1fr); }
+  .hero .projectBar { justify-self: center; }
+  .hero h1 { justify-self: start; }
+  .heroActions { justify-self: end; }
+}
+.journalTodayBubble.zero {
+  background: color-mix(in srgb, #d9a0a0 72%, var(--paper) 28%);
+  border-color: #bd7378;
+  color: #552d31;
+}
+.journalTodayBubble.partial {
+  background: color-mix(in srgb, #efd78a 76%, var(--paper) 24%);
+  border-color: #c6a44c;
+  color: #4f3a12;
+}
+.journalTodayBubble.complete {
+  background: color-mix(in srgb, #cfe6d6 76%, var(--paper) 24%);
+  border-color: #8eb69c;
+  color: #234734;
+}
+.projectCard {
+  grid-template-columns: minmax(220px, 0.95fr) minmax(180px, 1fr) 158px;
+  column-gap: 10px;
+}
+.projectNotes {
+  justify-self: start;
+  width: min(100%, 320px);
+  padding-left: 0;
+}
+.projectStatus.completeStatus {
+  width: 100%;
+  min-width: 158px;
+  justify-self: stretch;
+  justify-items: end;
+  text-align: right;
+}
+.deadlinePill { justify-self: end; }
+.archiveToggle {
+  background: color-mix(in srgb, #d9eadf 62%, var(--paper) 38%) !important;
+  color: var(--accent);
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.14);
+}
+.projectCard.completed {
+  background: color-mix(in srgb, #eef4ed 62%, var(--paper) 38%) !important;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, var(--accent-soft) 28%);
+  border-left: 4px solid color-mix(in srgb, var(--accent) 24%, var(--line) 76%);
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.07);
+}
+.projectCard.completed p:last-child {
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+  border-radius: 14px;
+  padding: 6px 9px;
+}
+[data-theme="dark"] .journalTodayBubble.zero {
+  background: color-mix(in srgb, #653239 70%, var(--paper) 30%);
+  border-color: #a65f67;
+  color: #f4dddd;
+}
+[data-theme="dark"] .journalTodayBubble.partial {
+  background: color-mix(in srgb, #5b4622 68%, var(--paper) 32%);
+  border-color: #a57f35;
+  color: #f5e8bf;
+}
+[data-theme="dark"] .journalTodayBubble.complete {
+  background: color-mix(in srgb, #385141 64%, var(--paper) 36%);
+  border-color: #5f8b70;
+  color: #dcefe2;
+}
+[data-theme="dark"] .archiveToggle {
+  background: color-mix(in srgb, #385141 44%, var(--paper) 56%) !important;
+  color: var(--ink);
+}
+[data-theme="dark"] .projectCard.completed {
+  background: color-mix(in srgb, #2e3c35 64%, var(--paper) 36%) !important;
+  border-color: #3e5147;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.20);
+}
+[data-theme="dark"] .projectCard.completed p:last-child { background: rgba(255, 247, 224, 0.05); }
+@media (max-width: 820px) {
+  .projectCard { grid-template-columns: 1fr; }
+  .projectNotes { width: 100%; }
+  .projectStatus.completeStatus { width: 100%; justify-items: start; text-align: left; }
+}
+
+/* Deadline card sizing, restore, and flag cleanup */
+.projectCard {
+  grid-template-columns: minmax(0, 1fr) 138px;
+  column-gap: 14px;
+}
+.projectMain { min-width: 0; }
+.projectInlineNotes {
+  margin: 7px 0 0;
+  max-width: 44rem;
+  color: color-mix(in srgb, var(--ink) 70%, var(--muted) 30%);
+  font-size: 14px;
+  line-height: 1.35;
+}
+.projectNotes:empty { display: none; }
+.projectStatus.completeStatus {
+  width: 128px;
+  min-width: 128px;
+  min-height: 96px;
+  max-width: 128px;
+  justify-self: end;
+  align-self: center;
+  justify-items: center;
+  text-align: center;
+  padding: 10px 8px;
+}
+.projectCard.completionPreview .projectMain h3,
+.projectCard.completionPreview .projectInlineNotes {
+  text-decoration: line-through;
+  text-decoration-thickness: 2.25px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 72%, transparent);
+  opacity: 0.68;
+}
+.completionPrompt {
+  margin-top: 2px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line) 80%);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--paper) 72%, var(--accent-soft) 28%);
+  box-shadow: 0 8px 18px rgba(31, 56, 42, 0.10);
+}
+.completionPrompt button {
+  background: color-mix(in srgb, #d9eadf 70%, var(--paper) 30%);
+  border: 0;
+  box-shadow: 0 4px 10px rgba(31, 56, 42, 0.09);
+}
+.projectCard.completed { cursor: pointer; }
+.projectCard.completed:hover, .projectCard.completed:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(31, 56, 42, 0.12);
+}
+.restoreModal { max-width: 420px; }
+.restoreModal .projectActions { margin-top: 12px; justify-content: center; }
+
+.day.hasDue .dueMarker, .mini.hasDue .dueMarker {
+  width: 10px;
+  height: 11px;
+  right: 3px;
+  bottom: 3px;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden;
+}
+.day.hasDue .dueMarker::before, .mini.hasDue .dueMarker::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  width: 2px;
+  height: 9px;
+  border-radius: 999px;
+  background: #8d6418;
+}
+.day.hasDue .dueMarker::after, .mini.hasDue .dueMarker::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  bottom: auto;
+  width: 6px;
+  height: 5px;
+  border: 0;
+  border-radius: 1px 3px 3px 1px;
+  background: #d99b24;
+}
+.day.due-overdue .dueMarker::after, .mini.due-overdue .dueMarker::after { background: #b85f61; }
+.day.due-today .dueMarker::after, .mini.due-today .dueMarker::after { background: #e0a22d; }
+.mini.hasDue .dueMarker {
+  width: 7px;
+  height: 8px;
+  right: 1px;
+  bottom: 1px;
+}
+.mini.hasDue .dueMarker::before {
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 7px;
+}
+.mini.hasDue .dueMarker::after {
+  left: 1px;
+  top: 0;
+  width: 5px;
+  height: 4px;
+}
+[data-theme="dark"] .projectInlineNotes { color: color-mix(in srgb, var(--ink) 74%, var(--muted) 26%); }
+[data-theme="dark"] .completionPrompt {
+  background: color-mix(in srgb, var(--paper) 74%, var(--accent-soft) 26%);
+  border-color: rgba(232, 222, 200, 0.14);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+}
+[data-theme="dark"] .completionPrompt button { background: color-mix(in srgb, #385141 54%, var(--paper) 46%); color: var(--ink); }
+[data-theme="dark"] .day.hasDue .dueMarker::before, [data-theme="dark"] .mini.hasDue .dueMarker::before { background: #d8b25d; }
+@media (max-width: 820px) {
+  .projectCard { grid-template-columns: 1fr; }
+  .projectStatus.completeStatus {
+    width: 128px;
+    min-width: 128px;
+    max-width: 128px;
+    justify-self: start;
+    justify-items: center;
+    text-align: center;
+  }
+}
+.day.hasDue, .mini.hasDue { position: relative; }
+
+/* Compact active deadline tile layout */
+.activeProjectsList {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+  width: 100%;
+  max-width: 940px;
+  margin-inline: auto;
+  align-items: start;
+}
+.activeProjectsList > .projectCard:only-child {
+  width: min(100%, 460px);
+  justify-self: center;
+}
+.activeProjectsList .projectCard:not(.isEditing) {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "main status"
+    "prompt prompt";
+  align-items: start;
+  gap: 10px 12px;
+  min-height: 0;
+  padding: 14px 14px 13px;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectMain {
+  grid-area: main;
+  display: grid;
+  gap: 3px;
+  padding-right: 2px;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectMain h3 {
+  margin-top: 0;
+  line-height: 1.12;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectInlineNotes {
+  margin-top: 8px;
+  max-width: none;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectNotes { display: none; }
+.activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus {
+  grid-area: status;
+  width: 112px;
+  min-width: 112px;
+  max-width: 112px;
+  min-height: 58px;
+  align-self: start;
+  justify-self: end;
+  align-content: center;
+  gap: 2px;
+  padding: 8px 9px;
+  border-radius: 17px;
+}
+.activeProjectsList .projectCard:not(.isEditing) .deadlinePill {
+  font-size: 12px;
+  line-height: 1.1;
+}
+.activeProjectsList .projectCard:not(.isEditing) .statusDate {
+  font-size: 10.5px;
+  line-height: 1.15;
+}
+.activeProjectsList .projectCard:not(.isEditing) .completeHint {
+  font-size: 10px;
+  line-height: 1.1;
+}
+.activeProjectsList .projectCard:not(.isEditing) .completionPrompt {
+  grid-area: prompt;
+}
+@media (max-width: 720px) {
+  .activeProjectsList {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+  .activeProjectsList > .projectCard:only-child { width: 100%; }
+}
+
+/* Deadlines row-height and status-chip alignment tune */
+.activeProjectsList {
+  align-items: stretch;
+}
+.activeProjectsList > .projectCard {
+  align-self: stretch;
+  height: 100%;
+}
+.activeProjectsList .projectCard:not(.isEditing) {
+  grid-template-columns: minmax(0, 1fr) 116px;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus {
+  box-sizing: border-box;
+  width: 116px;
+  min-width: 116px;
+  max-width: 116px;
+  height: 68px;
+  min-height: 68px;
+  align-self: start;
+  justify-self: end;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+@media (max-width: 720px) {
+  .activeProjectsList > .projectCard {
+    height: auto;
+  }
+}
+
+/* Cohesive active deadline status badge */
+.activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus {
+  gap: 4px;
+  background: color-mix(in srgb, var(--paper) 58%, #cfac52 42%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #8a6723 28%, transparent), 0 6px 14px rgba(31, 56, 42, 0.10);
+}
+.activeProjectsList .projectCard:not(.isEditing) .deadlinePill {
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent !important;
+  color: inherit;
+  box-shadow: none;
+}
+.activeProjectsList .projectCard:not(.isEditing) .statusDate {
+  color: color-mix(in srgb, currentColor 76%, var(--muted) 24%);
+  font-weight: 800;
+}
+.activeProjectsList .projectCard:not(.isEditing).future .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 58%, #cfe6d6 42%);
+  color: #234734;
+}
+.activeProjectsList .projectCard:not(.isEditing).approaching .projectStatus.completeStatus,
+.activeProjectsList .projectCard:not(.isEditing).soon .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 48%, #dfbf5a 52%);
+  color: #4f3712;
+}
+.activeProjectsList .projectCard:not(.isEditing).today .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 36%, #dca63a 64%);
+  color: #49320e;
+}
+.activeProjectsList .projectCard:not(.isEditing).overdue .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 48%, #d89594 52%);
+  color: #552d31;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).future .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 44%, #385141 56%);
+  color: #dcefe2;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).approaching .projectStatus.completeStatus,
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).soon .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 40%, #6f5522 60%);
+  color: #f5e8bf;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).today .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 34%, #8d6727 66%);
+  color: #fff1d1;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing).overdue .projectStatus.completeStatus {
+  background: color-mix(in srgb, var(--paper) 38%, #653239 62%);
+  color: #f4dddd;
+}
+
+/* Center and reorder deadline status badge text */
+.activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.activeProjectsList .projectCard:not(.isEditing) .deadlinePill,
+.activeProjectsList .projectCard:not(.isEditing) .statusDate,
+.activeProjectsList .projectCard:not(.isEditing) .completeHint {
+  width: 100%;
+  justify-content: center;
+  justify-self: center;
+  text-align: center;
+}
+
+.loginShell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+.loginCard {
+  width: min(420px, 100%);
+  background: color-mix(in srgb, var(--paper) 92%, var(--accent) 8%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+.loginKicker {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.loginCard h1 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Times New Roman", serif;
+  font-size: 42px;
+  line-height: 1;
+}
+.loginCopy {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+.loginForm {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+.loginForm label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.loginForm input[type="password"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  padding: 12px 13px;
+  outline: none;
+}
+.loginForm input[type="password"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.loginError {
+  margin: 0;
+  color: #9a4f4f;
+  font-size: 13px;
+}
+.loginButton {
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 82%, var(--paper) 18%);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 10px 18px rgba(31, 56, 42, 0.14);
+}
+.loginButton:hover {
+  filter: brightness(1.03);
+}
+[data-theme="dark"] .loginCard {
+  background: color-mix(in srgb, var(--paper) 86%, var(--accent) 14%);
+}
+[data-theme="dark"] .loginError {
+  color: #e5a6a6;
+}
+
+/* Focused goal/settings and deadline polish */
+.ghEmpty {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+.projectStatus.completeStatus:hover,
+.projectStatus.completeStatus:focus-visible {
+  transform: none !important;
+}
+.completeHint { margin-top: 2px; }
+.projectCard.completionPreview .projectMain h3,
+.projectCard.completionPreview .projectInlineNotes,
+.projectCard.completionPreview .projectNotes p {
+  text-decoration-thickness: 2.5px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 82%, transparent);
+  opacity: 0.66;
+}
+.archiveRestoreInline {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 76%, var(--accent-soft) 24%);
+  border: 1px solid color-mix(in srgb, var(--line) 74%, var(--accent) 26%);
+}
+.archiveRestoreInline p { margin: 0 0 8px; color: var(--muted); }
+.projectCard.completed.restoreOpen { opacity: 1; }
+.settingsFooter {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+.settingsToggle {
+  border-radius: 999px;
+  padding: 7px 13px;
+  background: color-mix(in srgb, var(--paper) 84%, var(--accent) 16%);
+  box-shadow: 0 8px 16px rgba(31, 56, 42, 0.08);
+}
+.goalSettingsPanel {
+  width: min(680px, 100%);
+  display: grid;
+  gap: 12px;
+  margin-bottom: 0;
+}
+.goalSettingsPanel h3 { margin: 0; font-family: "Iowan Old Style", "Times New Roman", serif; font-size: 24px; }
+.goalSettingsPanel p { margin: 4px 0 0; color: var(--muted); }
+.goalInputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.goalInputs label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.goalInputs input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 9px 10px;
+}
+.settingsMessage { font-size: 13px; }
+.settingsSave {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--accent) 78%, var(--paper) 22%);
+  color: #fff;
+  border: 0;
+}
+.dayDetailCard { display: grid; gap: 12px; }
+.dayDetailCard h3 { margin-bottom: 0; }
+.dayDetailStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.dayDetailStats p,
+.dayGoalBox,
+.daySessions,
+.dayDeadlineList {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 78%, var(--accent-soft) 22%);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+.dayDetailStats span,
+.dayGoalBox strong,
+.daySessions strong,
+.dayDeadlineList strong { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+.dayDetailStats strong { display: block; margin-top: 4px; font-size: 20px; }
+.dayGoalBox div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
+.dayGoalBox span { border-radius: 999px; padding: 5px 8px; background: color-mix(in srgb, var(--paper) 68%, var(--accent) 14%); font-size: 13px; }
+.daySessions ul,
+.dayDeadlineList ul { margin: 8px 0 0; padding-left: 18px; }
+[data-theme="dark"] .archiveRestoreInline,
+[data-theme="dark"] .dayDetailStats p,
+[data-theme="dark"] .dayGoalBox,
+[data-theme="dark"] .daySessions,
+[data-theme="dark"] .dayDeadlineList {
+  background: color-mix(in srgb, var(--paper) 78%, var(--accent) 8%);
+}
+[data-theme="dark"] .goalInputs input { background: #223029; }
+@media (max-width: 640px) {
+  .goalInputs,
+  .dayDetailStats { grid-template-columns: 1fr; }
+}
+.goalInputs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.gradualToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-weight: 700;
+}
+.gradualToggle input { accent-color: var(--accent); }
+.goalPreview {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 76%, var(--accent-soft) 24%);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, var(--accent) 22%);
+}
+.goalPreview ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+.goalPreview p { margin-top: 6px; }
+[data-theme="dark"] .goalPreview { background: color-mix(in srgb, var(--paper) 78%, var(--accent) 8%); }
+@media (max-width: 760px) {
+  .goalInputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .goalInputs { grid-template-columns: 1fr; }
+}
+.gradualToggle {
+  width: fit-content;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 13px;
+  background: color-mix(in srgb, var(--paper) 82%, var(--accent-soft) 18%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 78%, transparent), 0 8px 16px rgba(31, 56, 42, 0.06);
+}
+.gradualToggle.active {
+  background: color-mix(in srgb, var(--accent) 72%, var(--paper) 28%);
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(31, 56, 42, 0.14);
+}
+.goalInputs { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+[data-theme="dark"] .gradualToggle { background: color-mix(in srgb, var(--paper) 78%, var(--accent) 10%); }
+[data-theme="dark"] .gradualToggle.active { background: color-mix(in srgb, var(--accent) 76%, var(--paper) 24%); color: #101a15; }
