@@ -73,7 +73,7 @@ function stepValue(current: number, target: number, step: number): number {
 export function buildGradualGoalSchedule(
   current: WritingGoals,
   target: WritingGoals,
-  startDate: string,
+  targetDate: string,
   stepMinutes = 5,
   intervalDays = 14
 ): EffectiveWritingGoals[] {
@@ -91,7 +91,7 @@ export function buildGradualGoalSchedule(
   for (let index = 1; index <= steps; index += 1) {
     const movedBy = index * stepMinutes;
     const goals: EffectiveWritingGoals = {
-      effectiveDate: offsetYmd(startDate, (index - 1) * intervalDays),
+      effectiveDate: offsetYmd(targetDate, -(steps - index) * intervalDays),
       baselineMinutes: stepValue(current.baselineMinutes, target.baselineMinutes, movedBy),
       awesomeMinutes: stepValue(current.awesomeMinutes, target.awesomeMinutes, movedBy),
       stretchMinutes: stepValue(current.stretchMinutes, target.stretchMinutes, movedBy)

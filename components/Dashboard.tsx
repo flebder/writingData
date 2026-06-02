@@ -277,7 +277,7 @@ export default function Dashboard() {
   const projectEvents = projectsPayload?.events || [];
   const goalsForDay = (day: string) => getWritingGoalsForDate(projectEvents, day);
   const todayGoals = getWritingGoalsForDate(projectEvents, todayKey);
-  const rampStartGoals = goalStartDate <= todayKey ? todayGoals : getWritingGoalsForDate(projectEvents, addDaysToYmd(goalStartDate, -1));
+  const rampStartGoals = todayGoals;
   const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectsPayload]);
   const projectDeadlines = projectsPayload?.state?.activeDeadlines || [];
   const projectDeadlinesByDay = useMemo(() => {
@@ -520,16 +520,18 @@ export default function Dashboard() {
           <div>
             <p className="eyebrow">Writing goals</p>
             <h3>Current thresholds</h3>
-            <p>Changes apply from the chosen start date forward. Earlier days keep the goals that were active then.</p>
+            <p>Immediate changes apply today. Gradual shifts use the target date as the day the final goals take effect.</p>
           </div>
           <div className="goalInputs">
-            {gradualShift ? <label>Start date<input type="date" value={goalStartDate} onChange={(e) => setGoalStartDate(e.target.value || todayKey)} /></label> : null}
             <label>Baseline minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
             <label>Goal minutes<input type="number" min={goalForm.baselineMinutes + 1} value={goalForm.awesomeMinutes} onChange={(e) => setGoalForm({ ...goalForm, awesomeMinutes: Number(e.target.value) })} /></label>
             <label>Stretch minutes<input type="number" min={goalForm.awesomeMinutes + 1} value={goalForm.stretchMinutes} onChange={(e) => setGoalForm({ ...goalForm, stretchMinutes: Number(e.target.value) })} /></label>
           </div>
-          <button type="button" className={gradualShift ? "gradualToggle active" : "gradualToggle"} aria-pressed={gradualShift} onClick={() => setGradualShift((active) => !active)}>Gradual shift</button>
-          {gradualShift ? <div className="goalPreview">{gradualPreview.error ? <p className="settingsMessage">{gradualPreview.error}</p> : <><strong>This will create {gradualPreview.schedule.length} scheduled goal {gradualPreview.schedule.length === 1 ? "change" : "changes"}.</strong><ul>{gradualPreview.schedule.slice(0, 5).map((goals) => <li key={goals.effectiveDate}>{formatGoalScheduleDate(goals.effectiveDate)}: {goals.baselineMinutes} / {goals.awesomeMinutes} / {goals.stretchMinutes}</li>)}</ul>{gradualPreview.schedule.length > 5 ? <p>…and {gradualPreview.schedule.length - 5} more.</p> : null}</>}</div> : null}
+          <div className="gradualControls">
+            <button type="button" className={gradualShift ? "gradualToggle active" : "gradualToggle"} aria-pressed={gradualShift} onClick={() => setGradualShift((active) => !active)}>Gradual shift</button>
+            {gradualShift ? <label className="targetDateField">Target date<input type="date" min={todayKey} value={goalStartDate} onChange={(e) => setGoalStartDate(!e.target.value || e.target.value < todayKey ? todayKey : e.target.value)} /></label> : null}
+          </div>
+          {gradualShift ? <div className="goalPreview">{gradualPreview.error ? <p className="settingsMessage">{gradualPreview.error}</p> : <><strong>This will create {gradualPreview.schedule.length} scheduled goal {gradualPreview.schedule.length === 1 ? "change" : "changes"}.</strong><div className="goalPreviewRows">{gradualPreview.schedule.slice(0, 5).map((goals) => <div className="goalPreviewRow" key={goals.effectiveDate}><span>{formatGoalScheduleDate(goals.effectiveDate)}</span><strong>{goals.baselineMinutes} / {goals.awesomeMinutes} / {goals.stretchMinutes}</strong></div>)}</div>{gradualPreview.schedule.length > 5 ? <p>…and {gradualPreview.schedule.length - 5} more.</p> : null}</>}</div> : null}
           {goalMessage ? <p className="settingsMessage">{goalMessage}</p> : null}
           <button className="settingsSave" disabled={savingGoals}>{savingGoals ? "Saving…" : "Save goals"}</button>
         </form>}

@@ -1320,3 +1320,57 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 .goalInputs { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 [data-theme="dark"] .gradualToggle { background: color-mix(in srgb, var(--paper) 78%, var(--accent) 10%); }
 [data-theme="dark"] .gradualToggle.active { background: color-mix(in srgb, var(--accent) 76%, var(--paper) 24%); color: #101a15; }
+/* Goal settings target-date layout polish */
+.goalInputs {
+  width: min(460px, 100%);
+  margin-inline: auto;
+  grid-template-columns: repeat(3, minmax(104px, 1fr));
+  justify-content: center;
+}
+.goalInputs input {
+  max-width: 118px;
+  justify-self: center;
+  text-align: center;
+}
+.gradualControls {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+}
+.targetDateField {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.targetDateField input {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 8px 12px;
+  text-align: center;
+}
+.goalPreviewRows {
+  display: grid;
+  gap: 6px;
+  margin-top: 9px;
+}
+.goalPreviewRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 72%, var(--accent) 10%);
+  padding: 6px 10px;
+  color: var(--muted);
+}
+.goalPreviewRow strong { color: var(--ink); white-space: nowrap; }
+[data-theme="dark"] .targetDateField input { background: #223029; }
+@media (max-width: 520px) {
+  .goalInputs { grid-template-columns: 1fr; width: min(220px, 100%); }
+  .goalPreviewRow { align-items: flex-start; flex-direction: column; gap: 3px; border-radius: 14px; }
+}

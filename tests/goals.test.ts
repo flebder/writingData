@@ -18,30 +18,39 @@ test("writing goal validation requires increasing thresholds", () => {
 });
 
 
-test("gradual goal shifts create two-week five-minute steps", () => {
+test("gradual goal shifts work backward from the target date", () => {
   const schedule = buildGradualGoalSchedule(
     { baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 },
-    { baselineMinutes: 45, awesomeMinutes: 75, stretchMinutes: 135 },
-    "2026-06-01"
+    { baselineMinutes: 40, awesomeMinutes: 60, stretchMinutes: 120 },
+    "2026-07-08"
   );
 
   assert.deepEqual(schedule.map((goals) => [goals.effectiveDate, goals.baselineMinutes, goals.awesomeMinutes, goals.stretchMinutes]), [
-    ["2026-06-01", 35, 65, 125],
-    ["2026-06-15", 40, 70, 130],
-    ["2026-06-29", 45, 75, 135]
+    ["2026-06-24", 35, 60, 120],
+    ["2026-07-08", 40, 60, 120]
   ]);
 });
 
-test("gradual goal shifts can move downward", () => {
+test("gradual goal shifts can move downward toward the target date", () => {
   const schedule = buildGradualGoalSchedule(
-    { baselineMinutes: 45, awesomeMinutes: 75, stretchMinutes: 135 },
+    { baselineMinutes: 40, awesomeMinutes: 60, stretchMinutes: 120 },
     { baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 },
-    "2026-06-01"
+    "2026-07-08"
   );
 
   assert.deepEqual(schedule.map((goals) => [goals.effectiveDate, goals.baselineMinutes]), [
-    ["2026-06-01", 40],
-    ["2026-06-15", 35],
-    ["2026-06-29", 30]
+    ["2026-06-24", 35],
+    ["2026-07-08", 30]
   ]);
+});
+
+
+test("small gradual shifts create only a target-date snapshot", () => {
+  const schedule = buildGradualGoalSchedule(
+    { baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 },
+    { baselineMinutes: 34, awesomeMinutes: 60, stretchMinutes: 120 },
+    "2026-07-08"
+  );
+
+  assert.deepEqual(schedule.map((goals) => [goals.effectiveDate, goals.baselineMinutes]), [["2026-07-08", 34]]);
 });
