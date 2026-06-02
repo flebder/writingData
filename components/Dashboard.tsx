@@ -301,12 +301,12 @@ export default function Dashboard() {
     window.setTimeout(() => settingsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   }, [settingsOpen]);
 
-  const gradualSchedule = useMemo(() => {
-    if (!gradualShift) return [];
+  const gradualPreview = useMemo(() => {
+    if (!gradualShift) return { schedule: [], error: null as string | null };
     try {
-      return buildGradualGoalSchedule(rampStartGoals, goalForm, goalStartDate);
-    } catch {
-      return [];
+      return { schedule: buildGradualGoalSchedule(rampStartGoals, goalForm, goalStartDate), error: null as string | null };
+    } catch (error) {
+      return { schedule: [], error: error instanceof Error ? error.message : "Gradual shift preview is not available." };
     }
   }, [gradualShift, rampStartGoals, goalForm, goalStartDate]);
 
@@ -327,11 +327,12 @@ export default function Dashboard() {
     let goalEvents: ProjectEvent[];
     try {
       if (gradualShift) {
-        goalEvents = buildGradualGoalSchedule(rampStartGoals, goalForm, goalStartDate).map((goals, index) =>
+        if (gradualPreview.error) throw new Error(gradualPreview.error);
+        goalEvents = gradualPreview.schedule.map((goals, index) =>
           createWritingGoalsEvent(goals, goals.effectiveDate, { gradual_shift: true, step_index: index + 1 })
         );
       } else {
-        goalEvents = [createWritingGoalsEvent(goalForm, goalStartDate)];
+        goalEvents = [createWritingGoalsEvent(goalForm, todayKey)];
       }
     } catch (error) {
       setGoalMessage(error instanceof Error ? error.message : "Writing goals could not be saved right now.");
@@ -349,7 +350,7 @@ export default function Dashboard() {
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.warning || "Unable to save writing goals.");
       setProjectsPayload((current) => current ? { ...current, events: [...(current.events || []), ...goalEvents] } : current);
-      setGoalMessage(gradualShift ? `Saved ${goalEvents.length} scheduled goal changes.` : "Saved. New thresholds apply from the selected date forward.");
+      setGoalMessage(gradualShift ? `Saved ${goalEvents.length} scheduled goal changes.` : "Saved. New thresholds apply from today forward.");
       setSettingsOpen(false);
     } catch {
       setGoalMessage("Writing goals could not be saved right now.");
@@ -522,13 +523,13 @@ export default function Dashboard() {
             <p>Changes apply from the chosen start date forward. Earlier days keep the goals that were active then.</p>
           </div>
           <div className="goalInputs">
-            <label>Start date<input type="date" value={goalStartDate} onChange={(e) => setGoalStartDate(e.target.value || todayKey)} /></label>
+            {gradualShift ? <label>Start date<input type="date" value={goalStartDate} onChange={(e) => setGoalStartDate(e.target.value || todayKey)} /></label> : null}
             <label>Baseline minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
             <label>Goal minutes<input type="number" min={goalForm.baselineMinutes + 1} value={goalForm.awesomeMinutes} onChange={(e) => setGoalForm({ ...goalForm, awesomeMinutes: Number(e.target.value) })} /></label>
             <label>Stretch minutes<input type="number" min={goalForm.awesomeMinutes + 1} value={goalForm.stretchMinutes} onChange={(e) => setGoalForm({ ...goalForm, stretchMinutes: Number(e.target.value) })} /></label>
           </div>
-          <label className="gradualToggle"><input type="checkbox" checked={gradualShift} onChange={(e) => setGradualShift(e.target.checked)} /> Gradual shift</label>
-          {gradualShift ? <div className="goalPreview"><strong>This will create {gradualSchedule.length || 1} scheduled goal {gradualSchedule.length === 1 ? "change" : "changes"}.</strong><ul>{gradualSchedule.slice(0, 5).map((goals) => <li key={goals.effectiveDate}>{formatGoalScheduleDate(goals.effectiveDate)}: {goals.baselineMinutes} / {goals.awesomeMinutes} / {goals.stretchMinutes}</li>)}</ul>{gradualSchedule.length > 5 ? <p>…and {gradualSchedule.length - 5} more.</p> : null}</div> : null}
+          <button type="button" className={gradualShift ? "gradualToggle active" : "gradualToggle"} aria-pressed={gradualShift} onClick={() => setGradualShift((active) => !active)}>Gradual shift</button>
+          {gradualShift ? <div className="goalPreview">{gradualPreview.error ? <p className="settingsMessage">{gradualPreview.error}</p> : <><strong>This will create {gradualPreview.schedule.length} scheduled goal {gradualPreview.schedule.length === 1 ? "change" : "changes"}.</strong><ul>{gradualPreview.schedule.slice(0, 5).map((goals) => <li key={goals.effectiveDate}>{formatGoalScheduleDate(goals.effectiveDate)}: {goals.baselineMinutes} / {goals.awesomeMinutes} / {goals.stretchMinutes}</li>)}</ul>{gradualPreview.schedule.length > 5 ? <p>…and {gradualPreview.schedule.length - 5} more.</p> : null}</>}</div> : null}
           {goalMessage ? <p className="settingsMessage">{goalMessage}</p> : null}
           <button className="settingsSave" disabled={savingGoals}>{savingGoals ? "Saving…" : "Save goals"}</button>
         </form>}
