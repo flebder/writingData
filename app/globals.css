@@ -1374,3 +1374,41 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
   .goalInputs { grid-template-columns: 1fr; width: min(220px, 100%); }
   .goalPreviewRow { align-items: flex-start; flex-direction: column; gap: 3px; border-radius: 14px; }
 }
+/* Goal schedule and due-flag refinements */
+.goalInputs label {
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+}
+.goalInputs label span,
+.goalInputs label > :first-child:not(input) {
+  text-align: center;
+}
+.day.hasDue.due-future .dueMarker::after,
+.mini.hasDue.due-future .dueMarker::after,
+.day.hasDue.due-today .dueMarker::after,
+.mini.hasDue.due-today .dueMarker::after {
+  background: #d99b24;
+}
+.day.hasDue.due-completed .dueMarker::after,
+.mini.hasDue.due-completed .dueMarker::after {
+  background: #5b9d74;
+}
+.day.hasDue.due-overdue .dueMarker::after,
+.mini.hasDue.due-overdue .dueMarker::after {
+  background: #b85f61;
+}
+[data-theme="dark"] .day.hasDue.due-future .dueMarker::after,
+[data-theme="dark"] .mini.hasDue.due-future .dueMarker::after,
+[data-theme="dark"] .day.hasDue.due-today .dueMarker::after,
+[data-theme="dark"] .mini.hasDue.due-today .dueMarker::after {
+  background: #d8b25d;
+}
+[data-theme="dark"] .day.hasDue.due-completed .dueMarker::after,
+[data-theme="dark"] .mini.hasDue.due-completed .dueMarker::after {
+  background: #79b88e;
+}
+[data-theme="dark"] .day.hasDue.due-overdue .dueMarker::after,
+[data-theme="dark"] .mini.hasDue.due-overdue .dueMarker::after {
+  background: #d57a80;
+}

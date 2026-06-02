@@ -22,7 +22,8 @@ test("gradual goal shifts work backward from the target date", () => {
   const schedule = buildGradualGoalSchedule(
     { baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 },
     { baselineMinutes: 40, awesomeMinutes: 60, stretchMinutes: 120 },
-    "2026-07-08"
+    "2026-07-08",
+    "2026-06-01"
   );
 
   assert.deepEqual(schedule.map((goals) => [goals.effectiveDate, goals.baselineMinutes, goals.awesomeMinutes, goals.stretchMinutes]), [
@@ -35,7 +36,8 @@ test("gradual goal shifts can move downward toward the target date", () => {
   const schedule = buildGradualGoalSchedule(
     { baselineMinutes: 40, awesomeMinutes: 60, stretchMinutes: 120 },
     { baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 },
-    "2026-07-08"
+    "2026-07-08",
+    "2026-06-01"
   );
 
   assert.deepEqual(schedule.map((goals) => [goals.effectiveDate, goals.baselineMinutes]), [
@@ -49,8 +51,37 @@ test("small gradual shifts create only a target-date snapshot", () => {
   const schedule = buildGradualGoalSchedule(
     { baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 },
     { baselineMinutes: 34, awesomeMinutes: 60, stretchMinutes: 120 },
-    "2026-07-08"
+    "2026-07-08",
+    "2026-06-01"
   );
 
   assert.deepEqual(schedule.map((goals) => [goals.effectiveDate, goals.baselineMinutes]), [["2026-07-08", 34]]);
+});
+
+
+test("gradual goal shifts never create dates before the earliest schedule date", () => {
+  const schedule = buildGradualGoalSchedule(
+    { baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 },
+    { baselineMinutes: 40, awesomeMinutes: 60, stretchMinutes: 120 },
+    "2026-06-08",
+    "2026-05-31"
+  );
+
+  assert.deepEqual(schedule.map((goals) => [goals.effectiveDate, goals.baselineMinutes, goals.awesomeMinutes, goals.stretchMinutes]), [
+    ["2026-05-31", 35, 60, 120],
+    ["2026-06-08", 40, 60, 120]
+  ]);
+});
+
+test("past target dates become one immediate goal change", () => {
+  const schedule = buildGradualGoalSchedule(
+    { baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 },
+    { baselineMinutes: 40, awesomeMinutes: 65, stretchMinutes: 125 },
+    "2026-05-25",
+    "2026-05-31"
+  );
+
+  assert.deepEqual(schedule.map((goals) => [goals.effectiveDate, goals.baselineMinutes, goals.awesomeMinutes, goals.stretchMinutes]), [
+    ["2026-05-31", 40, 65, 125]
+  ]);
 });

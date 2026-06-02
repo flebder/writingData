@@ -280,14 +280,15 @@ export default function Dashboard() {
   const rampStartGoals = todayGoals;
   const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectsPayload]);
   const projectDeadlines = projectsPayload?.state?.activeDeadlines || [];
+  const completedProjectDeadlines = projectsPayload?.state?.completedMilestones || [];
   const projectDeadlinesByDay = useMemo(() => {
     const grouped: Record<string, ProjectDeadline[]> = {};
-    for (const deadline of projectDeadlines) {
+    for (const deadline of [...projectDeadlines, ...completedProjectDeadlines]) {
       const key = deadline.milestone.deadline_date;
       grouped[key] = [...(grouped[key] || []), deadline];
     }
     return grouped;
-  }, [projectDeadlines]);
+  }, [projectDeadlines, completedProjectDeadlines]);
   const projectBarDeadline = projectsPayload?.state?.nextDeadline || null;
   const projectsUnavailable = projectsPayload !== null && !projectsPayload.ok && Boolean(projectsPayload.warning);
   const projectBarClass = projectsUnavailable ? "unavailable" : projectUiUrgency(projectBarDeadline) || (projectsPayload === null ? "loading" : "empty");
@@ -304,15 +305,22 @@ export default function Dashboard() {
   const gradualPreview = useMemo(() => {
     if (!gradualShift) return { schedule: [], error: null as string | null };
     try {
-      return { schedule: buildGradualGoalSchedule(rampStartGoals, goalForm, goalStartDate), error: null as string | null };
+      return { schedule: buildGradualGoalSchedule(rampStartGoals, goalForm, goalStartDate, todayKey), error: null as string | null };
     } catch (error) {
       return { schedule: [], error: error instanceof Error ? error.message : "Gradual shift preview is not available." };
     }
-  }, [gradualShift, rampStartGoals, goalForm, goalStartDate]);
+  }, [gradualShift, rampStartGoals, goalForm, goalStartDate, todayKey]);
 
   function formatGoalScheduleDate(day: string) {
     const [year, month, date] = day.split("-").map(Number);
     return new Date(Date.UTC(year, month - 1, date, 12)).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  }
+
+  function dueFlagState(deadlines: ProjectDeadline[]) {
+    if (deadlines.some((item) => item.milestone.status === "active" && item.urgency === "overdue")) return "overdue";
+    if (deadlines.some((item) => item.milestone.status === "completed")) return "completed";
+    if (deadlines.some((item) => item.milestone.status === "active" && item.urgency === "today")) return "today";
+    return deadlines.length ? "future" : "";
   }
 
   async function saveGoals(event: FormEvent) {
@@ -463,13 +471,13 @@ export default function Dashboard() {
               const min = byDay[key]?.minutes || 0;
               const missed = isMissedDay(key, min, todayKey);
               const due = projectDeadlinesByDay[key] || [];
-              const dueUrgency = due.some((item) => item.urgency === "overdue") ? "overdue" : due.some((item) => item.urgency === "today") ? "today" : due.length ? "future" : "";
+              const dueUrgency = dueFlagState(due);
               return <button key={key} className={`day ${level(min, goalsForDay(key))} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)} onClick={() => setSelectedDay(key)}>{d.getUTCDate()}{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>;
             })}
           </div>
         ) : calendarMode === "grid" ? (
           <div className="yearWrap">
-            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(Date.UTC(displayYear, m.month, 1))); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); const due = projectDeadlinesByDay[key] || []; const dueUrgency = due.some((item) => item.urgency === "overdue") ? "overdue" : due.some((item) => item.urgency === "today") ? "today" : due.length ? "future" : ""; return <button key={key} className={`mini ${level(min, goalsForDay(key))} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)}>{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>; })}</div></div>)}
+            {months.map((m) => <div key={m.name} className="monthBlock"><button className="monthJump" onClick={() => { setDisplayDate(new Date(Date.UTC(displayYear, m.month, 1))); setViewMode("month"); }}>{m.name}</button><div className="monthMiniGrid">{m.cells.map((d, idx) => { if (!d) return <div key={`${m.name}-blank-${idx}`} className="mini ghEmpty" />; const key = ymdFromUtcDate(d); const min = byDay[key]?.minutes || 0; const missed = isMissedDay(key, min, todayKey); const due = projectDeadlinesByDay[key] || []; const dueUrgency = dueFlagState(due); return <button key={key} className={`mini ${level(min, goalsForDay(key))} ${missed ? "zeroPast" : ""} ${key === todayKey ? "today" : ""} ${due.length ? `hasDue due-${dueUrgency}` : ""}`} onClick={() => setSelectedDay(key)} onMouseEnter={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHover({ day: key, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHover(null)}>{due.length ? <span className="dueMarker">{due.length > 1 ? due.length : ""}</span> : null}</button>; })}</div></div>)}
           </div>
         ) : (
           <div className="lineWrap">

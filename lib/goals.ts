@@ -63,17 +63,24 @@ function offsetYmd(day: string, offsetDays: number): string {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
-function stepValue(current: number, target: number, step: number): number {
+function steppedValue(current: number, target: number, position: number, totalPositions: number, stepMinutes: number): number {
   const diff = target - current;
-  if (diff === 0) return target;
+  const absDiff = Math.abs(diff);
+  if (diff === 0 || absDiff < stepMinutes || position === totalPositions) return target;
+
   const direction = diff > 0 ? 1 : -1;
-  return current + direction * Math.min(Math.abs(diff), step);
+  const idealPositions = Math.ceil(absDiff / stepMinutes);
+  const movedBy = totalPositions >= idealPositions
+    ? position * stepMinutes
+    : Math.max(1, Math.round(absDiff * (position / totalPositions)));
+  return current + direction * Math.min(absDiff, movedBy);
 }
 
 export function buildGradualGoalSchedule(
   current: WritingGoals,
   target: WritingGoals,
   targetDate: string,
+  earliestDate = targetDate,
   stepMinutes = 5,
   intervalDays = 14
 ): EffectiveWritingGoals[] {
@@ -85,23 +92,38 @@ export function buildGradualGoalSchedule(
     Math.abs(target.awesomeMinutes - current.awesomeMinutes),
     Math.abs(target.stretchMinutes - current.stretchMinutes)
   );
-  const steps = Math.max(1, Math.ceil(maxDiff / stepMinutes));
-  const schedule: EffectiveWritingGoals[] = [];
+  const finalDate = targetDate <= earliestDate ? earliestDate : targetDate;
+  const idealSteps = Math.max(1, Math.ceil(maxDiff / stepMinutes));
 
-  for (let index = 1; index <= steps; index += 1) {
-    const movedBy = index * stepMinutes;
+  let effectiveDates: string[];
+  if (finalDate === earliestDate || maxDiff < stepMinutes) {
+    effectiveDates = [finalDate];
+  } else {
+    const idealDates = Array.from({ length: idealSteps }, (_, index) =>
+      offsetYmd(finalDate, -(idealSteps - index - 1) * intervalDays)
+    );
+    effectiveDates = idealDates.filter((date) => date >= earliestDate);
+    const idealRampStartedBeforeEarliest = idealDates[0] < earliestDate;
+    if (idealRampStartedBeforeEarliest && effectiveDates[0] !== earliestDate) {
+      effectiveDates.unshift(earliestDate);
+    }
+    if (!effectiveDates.includes(finalDate)) effectiveDates.push(finalDate);
+    effectiveDates = [...new Set(effectiveDates)].sort();
+  }
+
+  return effectiveDates.map((effectiveDate, index) => {
+    const position = index + 1;
+    const totalPositions = effectiveDates.length;
     const goals: EffectiveWritingGoals = {
-      effectiveDate: offsetYmd(targetDate, -(steps - index) * intervalDays),
-      baselineMinutes: stepValue(current.baselineMinutes, target.baselineMinutes, movedBy),
-      awesomeMinutes: stepValue(current.awesomeMinutes, target.awesomeMinutes, movedBy),
-      stretchMinutes: stepValue(current.stretchMinutes, target.stretchMinutes, movedBy)
+      effectiveDate,
+      baselineMinutes: steppedValue(current.baselineMinutes, target.baselineMinutes, position, totalPositions, stepMinutes),
+      awesomeMinutes: steppedValue(current.awesomeMinutes, target.awesomeMinutes, position, totalPositions, stepMinutes),
+      stretchMinutes: steppedValue(current.stretchMinutes, target.stretchMinutes, position, totalPositions, stepMinutes)
     };
     const validation = validateWritingGoals(goals);
     if (validation) throw new Error(`Gradual shift creates invalid goals on ${goals.effectiveDate}: ${validation}`);
-    schedule.push(goals);
-  }
-
-  return schedule;
+    return goals;
+  });
 }
 
 export function createWritingGoalsEvent(goals: WritingGoals, effectiveDate: string, extraPayload: Record<string, unknown> = {}): ProjectEvent {
