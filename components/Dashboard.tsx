@@ -5,7 +5,7 @@ import { addDaysToYmd, aggregateDays, getYmdInWritingTz, localTodayYmd, rollingW
 import { calculateDashboardStats } from "@/lib/stats";
 import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
 import type { ProjectDeadline, ProjectEvent, ProjectState } from "@/lib/projects";
-import { buildGradualGoalSchedule, createWritingGoalsEvent, getWritingGoalsForDate, validateWritingGoals, type WritingGoals } from "@/lib/goals";
+import { createWritingGoalsEvent, getWritingGoalsForDate, validateWritingGoals, type WritingGoals } from "@/lib/goals";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
 type ProjectsPayload = { ok: boolean; configured: boolean; state: ProjectState; events?: ProjectEvent[]; warning?: string };
@@ -184,8 +184,6 @@ export default function Dashboard() {
   const [goalForm, setGoalForm] = useState<WritingGoals>({ baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 });
   const [goalMessage, setGoalMessage] = useState<string | null>(null);
   const [savingGoals, setSavingGoals] = useState(false);
-  const [goalStartDate, setGoalStartDate] = useState(todayKey);
-  const [gradualShift, setGradualShift] = useState(false);
   const settingsPanelRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
@@ -277,7 +275,6 @@ export default function Dashboard() {
   const projectEvents = projectsPayload?.events || [];
   const goalsForDay = (day: string) => getWritingGoalsForDate(projectEvents, day);
   const todayGoals = getWritingGoalsForDate(projectEvents, todayKey);
-  const rampStartGoals = todayGoals;
   const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectsPayload]);
   const projectDeadlines = projectsPayload?.state?.activeDeadlines || [];
   const completedProjectDeadlines = projectsPayload?.state?.completedMilestones || [];
@@ -294,7 +291,6 @@ export default function Dashboard() {
   const projectBarClass = projectsUnavailable ? "unavailable" : projectUiUrgency(projectBarDeadline) || (projectsPayload === null ? "loading" : "empty");
   useEffect(() => {
     setGoalForm({ baselineMinutes: todayGoals.baselineMinutes, awesomeMinutes: todayGoals.awesomeMinutes, stretchMinutes: todayGoals.stretchMinutes });
-    setGoalStartDate(todayKey);
   }, [todayGoals.baselineMinutes, todayGoals.awesomeMinutes, todayGoals.stretchMinutes, todayKey]);
 
   useEffect(() => {
@@ -302,19 +298,6 @@ export default function Dashboard() {
     window.setTimeout(() => settingsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   }, [settingsOpen]);
 
-  const gradualPreview = useMemo(() => {
-    if (!gradualShift) return { schedule: [], error: null as string | null };
-    try {
-      return { schedule: buildGradualGoalSchedule(rampStartGoals, goalForm, goalStartDate, todayKey), error: null as string | null };
-    } catch (error) {
-      return { schedule: [], error: error instanceof Error ? error.message : "Gradual shift preview is not available." };
-    }
-  }, [gradualShift, rampStartGoals, goalForm, goalStartDate, todayKey]);
-
-  function formatGoalScheduleDate(day: string) {
-    const [year, month, date] = day.split("-").map(Number);
-    return new Date(Date.UTC(year, month - 1, date, 12)).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
-  }
 
   function dueFlagState(deadlines: ProjectDeadline[]) {
     if (deadlines.some((item) => item.milestone.status === "active" && item.urgency === "overdue")) return "overdue";
@@ -332,20 +315,7 @@ export default function Dashboard() {
       return;
     }
 
-    let goalEvents: ProjectEvent[];
-    try {
-      if (gradualShift) {
-        if (gradualPreview.error) throw new Error(gradualPreview.error);
-        goalEvents = gradualPreview.schedule.map((goals, index) =>
-          createWritingGoalsEvent(goals, goals.effectiveDate, { gradual_shift: true, step_index: index + 1 })
-        );
-      } else {
-        goalEvents = [createWritingGoalsEvent(goalForm, todayKey)];
-      }
-    } catch (error) {
-      setGoalMessage(error instanceof Error ? error.message : "Writing goals could not be saved right now.");
-      return;
-    }
+    const goalEvents = [createWritingGoalsEvent(goalForm, todayKey)];
 
     setSavingGoals(true);
     try {
@@ -358,7 +328,7 @@ export default function Dashboard() {
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.warning || "Unable to save writing goals.");
       setProjectsPayload((current) => current ? { ...current, events: [...(current.events || []), ...goalEvents] } : current);
-      setGoalMessage(gradualShift ? `Saved ${goalEvents.length} scheduled goal changes.` : "Saved. New thresholds apply from today forward.");
+      setGoalMessage("Saved. New thresholds apply from today forward.");
       setSettingsOpen(false);
     } catch {
       setGoalMessage("Writing goals could not be saved right now.");
@@ -528,18 +498,13 @@ export default function Dashboard() {
           <div>
             <p className="eyebrow">Writing goals</p>
             <h3>Current thresholds</h3>
-            <p>Immediate changes apply today. Gradual shifts use the target date as the day the final goals take effect.</p>
+            <p>Changes apply from today forward. Earlier days keep the thresholds that were active then.</p>
           </div>
           <div className="goalInputs">
             <label>Baseline minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
             <label>Goal minutes<input type="number" min={goalForm.baselineMinutes + 1} value={goalForm.awesomeMinutes} onChange={(e) => setGoalForm({ ...goalForm, awesomeMinutes: Number(e.target.value) })} /></label>
             <label>Stretch minutes<input type="number" min={goalForm.awesomeMinutes + 1} value={goalForm.stretchMinutes} onChange={(e) => setGoalForm({ ...goalForm, stretchMinutes: Number(e.target.value) })} /></label>
           </div>
-          <div className="gradualControls">
-            <button type="button" className={gradualShift ? "gradualToggle active" : "gradualToggle"} aria-pressed={gradualShift} onClick={() => setGradualShift((active) => !active)}>Gradual shift</button>
-            {gradualShift ? <label className="targetDateField">Target date<input type="date" min={todayKey} value={goalStartDate} onChange={(e) => setGoalStartDate(!e.target.value || e.target.value < todayKey ? todayKey : e.target.value)} /></label> : null}
-          </div>
-          {gradualShift ? <div className="goalPreview">{gradualPreview.error ? <p className="settingsMessage">{gradualPreview.error}</p> : <><strong>This will create {gradualPreview.schedule.length} scheduled goal {gradualPreview.schedule.length === 1 ? "change" : "changes"}.</strong><div className="goalPreviewRows">{gradualPreview.schedule.slice(0, 5).map((goals) => <div className="goalPreviewRow" key={goals.effectiveDate}><span>{formatGoalScheduleDate(goals.effectiveDate)}</span><strong>{goals.baselineMinutes} / {goals.awesomeMinutes} / {goals.stretchMinutes}</strong></div>)}</div>{gradualPreview.schedule.length > 5 ? <p>…and {gradualPreview.schedule.length - 5} more.</p> : null}</>}</div> : null}
           {goalMessage ? <p className="settingsMessage">{goalMessage}</p> : null}
           <button className="settingsSave" disabled={savingGoals}>{savingGoals ? "Saving…" : "Save goals"}</button>
         </form>}
