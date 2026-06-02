@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { aggregateDays, getCalendarRange, parseCsvSessions, splitSessionAcrossDays } from "../lib/writing.ts";
+import { aggregateDays, getCalendarRange, localTodayYmd, parseCsvSessions, splitSessionAcrossDays } from "../lib/writing.ts";
 
 test("parseCsvSessions handles headers, malformed rows, and dedupe", () => {
   const csv = [
@@ -66,4 +66,11 @@ test("aggregateDays anchors each session to canonical dateKey", () => {
   const byDay = aggregateDays(sessions);
   assert.equal(byDay["2026-05-18"].minutes, 50);
   assert.equal(byDay["2026-05-19"], undefined);
+});
+
+
+test("localTodayYmd formats local calendar date parts", () => {
+  const date = new Date(2026, 4, 31, 21, 30, 0);
+
+  assert.equal(localTodayYmd(date), "2026-05-31");
 });

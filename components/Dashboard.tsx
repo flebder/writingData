@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { addDaysToYmd, aggregateDays, getYmdInWritingTz, localTodayYmd, rollingWeekMinutes, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
-import type { ProjectDeadline, ProjectEvent, ProjectState } from "@/lib/projects";
+import { reduceProjectEvents, type ProjectDeadline, type ProjectEvent, type ProjectState } from "@/lib/projects";
 import { createWritingGoalsEvent, getWritingGoalsForDate, validateWritingGoals, type WritingGoals } from "@/lib/goals";
 
 type ApiPayload = { sessions: WritingSession[]; source: string; fetchedAt: string; warning?: string };
@@ -170,7 +170,7 @@ export default function Dashboard() {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("grid");
   const [displayDate, setDisplayDate] = useState(() => {
     const now = new Date();
-    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
   });
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [hover, setHover] = useState<{ day: string; x: number; y: number } | null>(null);
@@ -192,7 +192,10 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    setTodayKey(localTodayYmd(new Date()));
+    const refreshToday = () => setTodayKey(localTodayYmd(new Date()));
+    refreshToday();
+    const interval = window.setInterval(refreshToday, 60_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -273,11 +276,12 @@ export default function Dashboard() {
 
   const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), canonicalTimeZone), [payload, canonicalTimeZone]);
   const projectEvents = projectsPayload?.events || [];
+  const localProjectState = useMemo(() => reduceProjectEvents(projectEvents, todayKey), [projectEvents, todayKey]);
   const goalsForDay = (day: string) => getWritingGoalsForDate(projectEvents, day);
   const todayGoals = getWritingGoalsForDate(projectEvents, todayKey);
-  const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectsPayload]);
-  const projectDeadlines = projectsPayload?.state?.activeDeadlines || [];
-  const completedProjectDeadlines = projectsPayload?.state?.completedMilestones || [];
+  const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectEvents]);
+  const projectDeadlines = localProjectState.activeDeadlines;
+  const completedProjectDeadlines = localProjectState.completedMilestones;
   const projectDeadlinesByDay = useMemo(() => {
     const grouped: Record<string, ProjectDeadline[]> = {};
     for (const deadline of [...projectDeadlines, ...completedProjectDeadlines]) {
@@ -286,7 +290,7 @@ export default function Dashboard() {
     }
     return grouped;
   }, [projectDeadlines, completedProjectDeadlines]);
-  const projectBarDeadline = projectsPayload?.state?.nextDeadline || null;
+  const projectBarDeadline = localProjectState.nextDeadline;
   const projectsUnavailable = projectsPayload !== null && !projectsPayload.ok && Boolean(projectsPayload.warning);
   const projectBarClass = projectsUnavailable ? "unavailable" : projectUiUrgency(projectBarDeadline) || (projectsPayload === null ? "loading" : "empty");
   useEffect(() => {
