@@ -8,9 +8,14 @@ type ProjectApiBody = {
 };
 
 const HEADERS = { "Cache-Control": "no-store, no-cache, must-revalidate" };
+const READ_CACHE_TTL_MS = 30_000;
 const READ_ERROR_MESSAGE = "Project deadlines could not be loaded right now. Your writing dashboard is still available.";
 const WRITE_ERROR_MESSAGE = "Project changes could not be saved right now. Please try again in a moment.";
 const NOT_CONFIGURED_MESSAGE = "Project deadlines are not connected yet.";
+
+type EventsResult = { configured: boolean; events: ProjectEvent[]; warning?: string };
+
+let projectReadCache: { key: string; expiresAt: number; data: EventsResult } | null = null;
 
 function json(data: unknown, init: ResponseInit = {}) {
   return NextResponse.json(data, { ...init, headers: { ...HEADERS, ...(init.headers || {}) } });
@@ -98,23 +103,45 @@ function normalizeEvents(value: unknown): ProjectEvent[] {
     }));
 }
 
-async function fetchEvents(): Promise<{ configured: boolean; events: ProjectEvent[]; warning?: string }> {
+function getCachedEvents(key: string): EventsResult | null {
+  if (!projectReadCache || projectReadCache.key !== key || projectReadCache.expiresAt <= Date.now()) return null;
+  return projectReadCache.data;
+}
+
+function setCachedEvents(key: string, data: EventsResult) {
+  projectReadCache = { key, data, expiresAt: Date.now() + READ_CACHE_TTL_MS };
+}
+
+function clearCachedEvents() {
+  projectReadCache = null;
+}
+
+async function fetchEvents(): Promise<EventsResult> {
   const readUrl = process.env.PROJECTS_EVENTS_READ_URL || process.env.PROJECTS_EVENTS_CSV_URL;
   if (!readUrl) return { configured: false, events: [], warning: NOT_CONFIGURED_MESSAGE };
+
+  const cached = getCachedEvents(readUrl);
+  if (cached) return cached;
 
   const response = await fetch(urlWithToken(readUrl), { cache: "no-store" });
   if (!response.ok) throw new Error(`Project event fetch failed: ${response.status}`);
   const text = await response.text();
   const trimmed = text.trim();
-  if (!trimmed) return { configured: true, events: [] };
-
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    const parsed = JSON.parse(trimmed) as { ok?: boolean; events?: unknown[] } | unknown[];
-    if (!Array.isArray(parsed) && parsed && typeof parsed === "object" && (parsed as { ok?: boolean }).ok === false) throw new Error("Project read endpoint returned an error");
-    return { configured: true, events: normalizeEvents(parsed) };
+  if (!trimmed) {
+    const data: EventsResult = { configured: true, events: [] };
+    setCachedEvents(readUrl, data);
+    return data;
   }
 
-  return { configured: true, events: parseEventsCsv(trimmed) };
+  const data: EventsResult = trimmed.startsWith("{") || trimmed.startsWith("[")
+    ? (() => {
+      const parsed = JSON.parse(trimmed) as { ok?: boolean; events?: unknown[] } | unknown[];
+      if (!Array.isArray(parsed) && parsed && typeof parsed === "object" && (parsed as { ok?: boolean }).ok === false) throw new Error("Project read endpoint returned an error");
+      return { configured: true, events: normalizeEvents(parsed) };
+    })()
+    : { configured: true, events: parseEventsCsv(trimmed) };
+  setCachedEvents(readUrl, data);
+  return data;
 }
 
 export async function GET() {
@@ -163,6 +190,7 @@ export async function POST(request: Request) {
         return json({ ok: false, warning: WRITE_ERROR_MESSAGE }, { status: 502 });
       }
     }
+    clearCachedEvents();
     return json({ ok: true, events });
   } catch (error) {
     console.error("Project event write failed", error);

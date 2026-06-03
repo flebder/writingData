@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
-import { FALLBACK_SESSIONS, parseCsvSessions } from "@/lib/writing";
+import { FALLBACK_SESSIONS, parseCsvSessions, type WritingSession } from "@/lib/writing";
 
-export const revalidate = 300;
+export const revalidate = 0;
 export const dynamic = "force-dynamic";
 
 const HEADERS = { "Cache-Control": "no-store, no-cache, must-revalidate" };
+const READ_CACHE_TTL_MS = 30_000;
 const READ_ERROR = "Unable to fetch writing sessions from the configured private sheet reader. Serving fallback data.";
+
+type SessionsResponse = {
+  ok: boolean;
+  source: string;
+  sessions: WritingSession[];
+  fetchedAt: string;
+  error?: string;
+  warning?: string;
+};
+
+let sessionsReadCache: { key: string; expiresAt: number; data: SessionsResponse } | null = null;
 
 function json(data: unknown, init: ResponseInit = {}) {
   return NextResponse.json(data, { ...init, headers: { ...HEADERS, ...(init.headers || {}) } });
@@ -22,6 +34,15 @@ function readUrlWithToken(rawUrl: string) {
   if (!url.searchParams.has("token")) url.searchParams.set("token", token);
   if (!url.searchParams.has("action")) url.searchParams.set("action", "sessions");
   return url.toString();
+}
+
+function getCachedSessions(key: string): SessionsResponse | null {
+  if (!sessionsReadCache || sessionsReadCache.key !== key || sessionsReadCache.expiresAt <= Date.now()) return null;
+  return sessionsReadCache.data;
+}
+
+function setCachedSessions(key: string, data: SessionsResponse) {
+  sessionsReadCache = { key, data, expiresAt: Date.now() + READ_CACHE_TTL_MS };
 }
 
 async function fetchWithTimeout(url: string, timeoutMs = 15_000) {
@@ -60,6 +81,9 @@ export async function GET() {
   }
 
   try {
+    const cached = getCachedSessions(readUrl);
+    if (cached) return json(cached);
+
     const csv = await fetchWithTimeout(readUrl);
     const sessions = parseCsvSessions(csv);
 
@@ -74,12 +98,14 @@ export async function GET() {
       }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
     }
 
-    return json({
+    const data: SessionsResponse = {
       ok: true,
       source: process.env.WRITING_SESSIONS_READ_URL ? "private-reader" : "server-csv",
       sessions,
       fetchedAt: new Date().toISOString()
-    }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
+    };
+    setCachedSessions(readUrl, data);
+    return json(data);
   } catch (error) {
     console.error("/api/sessions failed; serving fallback dataset", error);
 
