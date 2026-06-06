@@ -319,7 +319,8 @@ export default function Dashboard() {
       return;
     }
 
-    const goalEvents = [createWritingGoalsEvent(goalForm, todayKey)];
+    const goalEffectiveDate = addDaysToYmd(todayKey, 1);
+    const goalEvents = [createWritingGoalsEvent(goalForm, goalEffectiveDate)];
 
     setSavingGoals(true);
     try {
@@ -332,7 +333,7 @@ export default function Dashboard() {
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.warning || "Unable to save writing goals.");
       setProjectsPayload((current) => current ? { ...current, events: [...(current.events || []), ...goalEvents] } : current);
-      setGoalMessage("Saved. New thresholds apply from today forward.");
+      setGoalMessage("Saved. New goals start tomorrow.");
       setSettingsOpen(false);
     } catch {
       setGoalMessage("Writing goals could not be saved right now.");
@@ -502,7 +503,7 @@ export default function Dashboard() {
           <div>
             <p className="eyebrow">Writing goals</p>
             <h3>Current thresholds</h3>
-            <p>Changes apply from today forward. Earlier days keep the thresholds that were active then.</p>
+            <p>New goals start tomorrow. Today and earlier days keep the thresholds that were active then.</p>
           </div>
           <div className="goalInputs">
             <label>Baseline minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
@@ -519,7 +520,7 @@ export default function Dashboard() {
       {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard trendDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p><strong>Current pace:</strong> {stats.trend.dailyNow} {minuteWord(stats.trend.dailyNow)}/day</p><p><strong>Previous pace:</strong> {stats.trend.dailyPrev} {minuteWord(stats.trend.dailyPrev)}/day</p><p><strong>Change:</strong> {trendMinutes} {minuteWord(trendMinutes)} {trendDirection} per day</p><p><strong>Compared:</strong> {comparedCurrent} vs. {comparedPrevious}</p></div></div>}
 
       {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p><strong>Recommended:</strong> {stats.motivation.target === "today" ? "Today" : "Tomorrow"} at {motivationStart}</p><p><strong>Goal:</strong> {stats.motivation.suggestedDurationMinutes} minutes</p><p><strong>Why:</strong> {motivationWindow ? `Your strongest ${stats.motivation.weekday} window is ${motivationWindow}.` : stats.motivation.detail}</p><p><strong>Based on:</strong> {stats.motivation.chosenCluster?.sessionCount ?? 0} sessions averaging {fmtMinutes(stats.motivation.chosenCluster?.averageDurationMinutes ?? stats.motivation.suggestedDurationMinutes)}.</p></div></div>}
-      {expanded === "streak" && <div className="modal modalNoBackdrop" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Streak details</h3><section className="stats streakGrid"><article className="panel streakCard"><h3>Current streak</h3><p>{streaks.current?.days ?? 0} days</p><small>{fmtDateRange(streaks.current)}</small></article><article className="panel streakCard"><h3>Current score</h3><p>{fmtMinutes(streaks.current?.scoreMinutes ?? 0)}</p><small>Daily avg. {fmtMinutes(streaks.current ? Math.round(streaks.current.scoreMinutes / Math.max(1, streaks.current.days)) : 0)}</small></article><article className="panel streakCard"><h3>Longest streak (year)</h3><p>{streaks.longestYear?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestYear)}</small></article><article className="panel streakCard"><h3>Best score (year)</h3><p>{fmtMinutes(streaks.bestScoreYear?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreYear)}</small></article><article className="panel streakCard"><h3>Longest streak (all time)</h3><p>{streaks.longestAllTime?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestAllTime)}</small></article><article className="panel streakCard"><h3>Best score (all time)</h3><p>{fmtMinutes(streaks.bestScoreAllTime?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreAllTime)}</small></article></section></div></div>}
+      {expanded === "streak" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Streak details</h3><section className="stats streakGrid"><article className="panel streakCard"><h3>Current streak</h3><p>{streaks.current?.days ?? 0} days</p><small>{fmtDateRange(streaks.current)}</small></article><article className="panel streakCard"><h3>Current score</h3><p>{fmtMinutes(streaks.current?.scoreMinutes ?? 0)}</p><small>Daily avg. {fmtMinutes(streaks.current ? Math.round(streaks.current.scoreMinutes / Math.max(1, streaks.current.days)) : 0)}</small></article><article className="panel streakCard"><h3>Longest streak (year)</h3><p>{streaks.longestYear?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestYear)}</small></article><article className="panel streakCard"><h3>Best score (year)</h3><p>{fmtMinutes(streaks.bestScoreYear?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreYear)}</small></article><article className="panel streakCard"><h3>Longest streak (all time)</h3><p>{streaks.longestAllTime?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestAllTime)}</small></article><article className="panel streakCard"><h3>Best score (all time)</h3><p>{fmtMinutes(streaks.bestScoreAllTime?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreAllTime)}</small></article></section></div></div>}
         </div>
       )}
     </main>
