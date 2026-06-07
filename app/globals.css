@@ -1422,3 +1422,39 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
 @media (prefers-reduced-motion: reduce) {
   .activeProjectsList .projectCard:not(.isEditing) .projectStatus.completeStatus { transition: none; }
 }
+/* Smooth single-line completion preview */
+.activeProjectsList .projectCard:not(.isEditing) .projectMain {
+  position: relative;
+}
+.activeProjectsList .projectCard:not(.isEditing) .projectMain::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 52%;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.activeProjectsList .projectCard.completionPreview:not(.isEditing) .projectMain::after {
+  opacity: 0.9;
+  transform: scaleX(1);
+}
+.activeProjectsList .projectCard.completionPreview:not(.isEditing) .projectMain h3,
+.activeProjectsList .projectCard.completionPreview:not(.isEditing) .projectInlineNotes,
+.activeProjectsList .projectCard.completionPreview:not(.isEditing) .projectNotes p {
+  text-decoration: none !important;
+}
+[data-theme="dark"] .activeProjectsList .projectCard:not(.isEditing) .projectMain::after {
+  background: color-mix(in srgb, var(--accent) 82%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .activeProjectsList .projectCard:not(.isEditing) .projectMain::after {
+    transition: none;
+  }
+}
