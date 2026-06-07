@@ -503,7 +503,7 @@ export default function Dashboard() {
           <div>
             <p className="eyebrow">Writing goals</p>
             <h3>Current thresholds</h3>
-            <p>New goals start tomorrow. Today and earlier days keep the thresholds that were active then.</p>
+            <p>New goals start tomorrow. Earlier days keep the thresholds that were active then.</p>
           </div>
           <div className="goalInputs">
             <label>Baseline minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
