@@ -95,7 +95,7 @@ export async function GET() {
         source: "fallback",
         sessions: FALLBACK_SESSIONS,
         fetchedAt: new Date().toISOString()
-      });
+      }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
     }
 
     const data: SessionsResponse = {
@@ -117,7 +117,7 @@ export async function GET() {
         sessions: FALLBACK_SESSIONS,
         fetchedAt: new Date().toISOString()
       },
-      { status: 200 }
+      { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
     );
   }
 }
