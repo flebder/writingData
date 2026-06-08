@@ -321,7 +321,8 @@ export default function ProjectsClient() {
         {loading ? <article className="panel projectCard projectCardFeature">Loading project deadlines…</article> : state.activeDeadlines.length ? state.activeDeadlines.map((deadline, index) => {
           const later = laterMilestones(deadline, state.milestones);
           const isEditing = editingId === deadline.milestone.milestone_id;
-          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${projectUiUrgency(deadline)} ${isEditing ? "isEditing" : ""} ${completionHoverId === deadline.milestone.milestone_id ? "completionPreview" : ""}`} onClick={() => !isEditing && startEdit(deadline)}>
+          const isCompletionPending = manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id;
+          return <article key={deadline.milestone.milestone_id} className={`panel projectCard ${index === 0 ? "projectCardFeature" : ""} ${projectUiUrgency(deadline)} ${isEditing ? "isEditing" : ""} ${completionHoverId === deadline.milestone.milestone_id ? "completionPreview" : ""} ${isCompletionPending ? "completionPending" : ""}`} onClick={() => !isEditing && startEdit(deadline)}>
             <div className="projectMain" onClick={(e) => isEditing && e.stopPropagation()}>
               {isEditing ? <input className="projectNameInput" aria-label="Project name" value={edit.project_name} onChange={(e) => setEdit({ ...edit, project_name: e.target.value })} /> : <p className="eyebrow">{deadline.project.project_name}{deadline.project.project_type ? ` · ${deadline.project.project_type}` : ""}</p>}
               {isEditing ? <input className="projectTitleInput" aria-label="Milestone name" value={edit.milestone_name} onChange={(e) => setEdit({ ...edit, milestone_name: e.target.value })} /> : <h3>{deadline.milestone.milestone_name}</h3>}
@@ -334,7 +335,7 @@ export default function ProjectsClient() {
               <strong className="deadlinePill">{dueCopy(deadline)}</strong>
               <span className="completeHint">Mark done</span>
             </button>}
-            {manualAdjust?.completing.milestone.milestone_id === deadline.milestone.milestone_id && <div className="rolloverBox completionPrompt" onClick={(e) => e.stopPropagation()}>
+            {isCompletionPending && <div className="rolloverBox completionPrompt" onClick={(e) => e.stopPropagation()}>
               <p>{later.length ? "Auto-adjust upcoming deadlines?" : "Complete this milestone?"}</p>
               {later.length ? <><button onClick={() => complete(deadline, "auto")} disabled={saving}>Yes</button><button onClick={() => complete(deadline, "none")} disabled={saving}>No</button></> : <><button onClick={() => complete(deadline, "none")} disabled={saving}>Yes</button><button onClick={() => setManualAdjust(null)} disabled={saving}>Cancel</button></>}
             </div>}
