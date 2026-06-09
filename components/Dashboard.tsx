@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { addDaysToYmd, aggregateDays, getYmdInWritingTz, localTodayYmd, rollingWeekMinutes, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
@@ -224,7 +224,8 @@ export default function Dashboard() {
   }, [theme, themeReady]);
 
   useEffect(() => {
-    if (expanded !== "streak") return;
+    if (!selectedDay && !expanded) return;
+    if (!window.matchMedia("(max-width: 600px)").matches) return;
     const scrollY = window.scrollY;
     const body = document.body;
     const prev = {
@@ -248,7 +249,7 @@ export default function Dashboard() {
       body.style.paddingRight = prev.paddingRight;
       window.scrollTo(0, scrollY);
     };
-  }, [expanded]);
+  }, [selectedDay, expanded]);
 
   const byDay = useMemo(() => aggregateDays(payload?.sessions || [], canonicalTimeZone), [payload, canonicalTimeZone]);
 
@@ -409,6 +410,10 @@ export default function Dashboard() {
   const comparedPrevious = formatCompactRange(stats.trend.previousPeriod[0], stats.trend.previousPeriod.at(-1) || stats.trend.previousPeriod[0], canonicalTimeZone);
   const motivationStart = timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.suggestedStartMinutes / 60), stats.motivation.suggestedStartMinutes % 60)));
   const motivationWindow = stats.motivation.chosenCluster ? `${timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.chosenCluster.bucketStart / 60), stats.motivation.chosenCluster.bucketStart % 60)))}–${timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.chosenCluster.bucketEnd / 60), stats.motivation.chosenCluster.bucketEnd % 60)))}` : null;
+  const hourTooltipPoint = (event: MouseEvent<HTMLElement>) => ({
+    x: Math.min(event.clientX + 12, window.innerWidth - 190),
+    y: Math.min(event.clientY + 12, window.innerHeight - 96)
+  });
 
   return (
     <main className="journalShell">
@@ -490,9 +495,9 @@ export default function Dashboard() {
         <h3>Typical writing time by day</h3>
         <div className="hBars">{weekdayBars.map((d) => { const max = Math.max(1, ...weekdayBars.map((x) => x.avg)); return <div key={d.name} className="hBarRow"><span>{d.name}</span><div className="hBarTrack"><div className="hBarFill" style={{ width: `${(d.avg / max) * 100}%` }} /></div><strong>{fmtMinutes(d.avg)}</strong></div>; })}</div>
         <h3>Writing activity across the day</h3>
-        <div className="hourHist">{hourly.map((h) => <div key={h.hour} className={`hourCol ${hourHover?.hour === h.hour ? "isHovered" : ""}`} onMouseEnter={(e) => setHourHover({ hour: h.hour, x: e.clientX, y: e.clientY })} onMouseMove={(e) => setHourHover({ hour: h.hour, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHourHover(null)}><div className="hourBar" style={{ height: `${Math.max(8, (h.daysCount / maxHour) * 100)}%` }} /></div>)}</div>
+        <div className="hourHist">{hourly.map((h) => <button type="button" key={h.hour} className={`hourCol ${hourHover?.hour === h.hour ? "isHovered" : ""}`} aria-label={`${String(h.hour).padStart(2, "0")}:00 writing activity`} onMouseEnter={(e) => setHourHover({ hour: h.hour, ...hourTooltipPoint(e) })} onMouseMove={(e) => setHourHover({ hour: h.hour, ...hourTooltipPoint(e) })} onMouseLeave={() => setHourHover(null)} onClick={(e) => { const point = hourTooltipPoint(e); setHourHover((current) => current?.hour === h.hour ? null : { hour: h.hour, ...point }); }}><div className="hourBar" style={{ height: `${Math.max(8, (h.daysCount / maxHour) * 100)}%` }} /></button>)}</div>
         <div className="hourTicks">{Array.from({ length: 24 }, (_, i) => <span key={i} className={i % 3 === 0 ? "major" : "minor"}>{String(i).padStart(2, "0")}</span>)}</div>
-        {hourHover && <div className="hourTooltip" style={{ left: hourHover.x + 12, top: hourHover.y + 12 }}><strong>{String(hourHover.hour).padStart(2, "0")}:00</strong><span>Written on {hourly[hourHover.hour].daysCount} days</span><span>Average: {hourly[hourHover.hour].avgMinutes} minutes</span></div>}
+        {hourHover && <div className="hourTooltip" style={{ left: hourHover.x, top: hourHover.y }}><strong>{String(hourHover.hour).padStart(2, "0")}:00</strong><span>Written on {hourly[hourHover.hour].daysCount} days</span><span>Average: {hourly[hourHover.hour].avgMinutes} minutes</span></div>}
       </section>
 
 

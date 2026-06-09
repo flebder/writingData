@@ -2009,3 +2009,108 @@ button.active { background: #dcefe2; border-color: #9dcab0; }
     width: min(640px, 94vw);
   }
 }
+
+/* Mobile-only bug-fix pass */
+@media (max-width: 600px) {
+  .projectForm label,
+  .projectMeta,
+  .projectForm input,
+  .projectForm select,
+  .projectForm textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .projectForm input[type="date"],
+  .projectCard input[type="date"] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .modal {
+    place-items: center;
+    align-items: center;
+    justify-items: center;
+    padding: 12px;
+    overscroll-behavior: contain;
+  }
+
+  .modalCard {
+    max-height: calc(100dvh - 24px);
+    border-radius: 18px;
+  }
+
+  body:has(.modal) {
+    overflow: hidden;
+  }
+
+  .projectBarName {
+    flex-basis: 100%;
+    display: block;
+    text-align: center;
+  }
+
+  .projectBarSep {
+    display: none;
+  }
+
+  .projectBar strong,
+  .projectBarDate {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.15;
+  }
+
+  .hourCol {
+    min-width: 0;
+    min-height: 44px;
+    border: 0;
+    border-radius: 7px;
+    padding: 0 1px;
+    background: transparent;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .hourCol:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    outline-offset: 2px;
+  }
+
+  .hourTooltip {
+    display: flex;
+    left: clamp(10px, var(--tooltip-left, 10px), calc(100vw - 190px));
+    max-width: calc(100vw - 20px);
+  }
+
+  .hoverTip {
+    display: none;
+  }
+}
+
+.hourCol {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 0;
+}
+.hourCol:hover,
+.hourCol:focus-visible {
+  background: transparent;
+}
+[data-theme="dark"] .hourCol,
+[data-theme="dark"] .hourCol:hover,
+[data-theme="dark"] .hourCol:focus-visible {
+  background: transparent;
+}
+
+@media (max-width: 600px) {
+  .hourCol {
+    border-radius: 7px;
+    padding: 0 1px;
+    min-height: 44px;
+  }
+}
