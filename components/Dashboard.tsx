@@ -14,6 +14,7 @@ const EMPTY_PROJECT_STATE: ProjectState = { projects: [], milestones: [], active
 const PROJECTS_UNAVAILABLE: ProjectsPayload = { ok: false, configured: true, state: EMPTY_PROJECT_STATE, warning: "Project deadlines unavailable" };
 type ViewMode = "month" | "year";
 type CalendarMode = "grid" | "line";
+type WritingGoalForm = Record<keyof WritingGoals, string>;
 
 type LinePoint = {
   tooltipLabel: string;
@@ -182,7 +183,7 @@ export default function Dashboard() {
   const [themeReady, setThemeReady] = useState(false);
   const [todayKey, setTodayKey] = useState(() => localTodayYmd(new Date()));
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [goalForm, setGoalForm] = useState<WritingGoals>({ baselineMinutes: 30, awesomeMinutes: 60, stretchMinutes: 120 });
+  const [goalForm, setGoalForm] = useState<WritingGoalForm>({ baselineMinutes: "30", awesomeMinutes: "60", stretchMinutes: "120" });
   const [goalMessage, setGoalMessage] = useState<string | null>(null);
   const [savingGoals, setSavingGoals] = useState(false);
   const settingsPanelRef = useRef<HTMLFormElement | null>(null);
@@ -312,7 +313,7 @@ export default function Dashboard() {
   const projectsUnavailable = projectsPayload !== null && !projectsPayload.ok && Boolean(projectsPayload.warning);
   const projectBarClass = projectsUnavailable ? "unavailable" : projectUiUrgency(projectBarDeadline) || (projectsPayload === null ? "loading" : "empty");
   useEffect(() => {
-    setGoalForm({ baselineMinutes: todayGoals.baselineMinutes, awesomeMinutes: todayGoals.awesomeMinutes, stretchMinutes: todayGoals.stretchMinutes });
+    setGoalForm({ baselineMinutes: String(todayGoals.baselineMinutes), awesomeMinutes: String(todayGoals.awesomeMinutes), stretchMinutes: String(todayGoals.stretchMinutes) });
   }, [todayGoals.baselineMinutes, todayGoals.awesomeMinutes, todayGoals.stretchMinutes, todayKey]);
 
   useEffect(() => {
@@ -331,14 +332,20 @@ export default function Dashboard() {
   async function saveGoals(event: FormEvent) {
     event.preventDefault();
     setGoalMessage(null);
-    const validation = validateWritingGoals(goalForm);
+
+    const nextGoals: WritingGoals = {
+      baselineMinutes: Number(goalForm.baselineMinutes),
+      awesomeMinutes: Number(goalForm.awesomeMinutes),
+      stretchMinutes: Number(goalForm.stretchMinutes)
+    };
+    const validation = validateWritingGoals(nextGoals);
     if (validation) {
       setGoalMessage(validation);
       return;
     }
 
     const goalEffectiveDate = addDaysToYmd(todayKey, 1);
-    const goalEvents = [createWritingGoalsEvent(goalForm, goalEffectiveDate)];
+    const goalEvents = [createWritingGoalsEvent(nextGoals, goalEffectiveDate)];
 
     setSavingGoals(true);
     try {
@@ -528,9 +535,9 @@ export default function Dashboard() {
             <p>New goals start tomorrow. Earlier days keep the thresholds that were active then.</p>
           </div>
           <div className="goalInputs">
-            <label>Baseline minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: Number(e.target.value) })} /></label>
-            <label>Goal minutes<input type="number" min={goalForm.baselineMinutes + 1} value={goalForm.awesomeMinutes} onChange={(e) => setGoalForm({ ...goalForm, awesomeMinutes: Number(e.target.value) })} /></label>
-            <label>Stretch minutes<input type="number" min={goalForm.awesomeMinutes + 1} value={goalForm.stretchMinutes} onChange={(e) => setGoalForm({ ...goalForm, stretchMinutes: Number(e.target.value) })} /></label>
+            <label>Baseline minutes<input type="number" min="1" value={goalForm.baselineMinutes} onChange={(e) => setGoalForm({ ...goalForm, baselineMinutes: e.target.value })} /></label>
+            <label>Goal minutes<input type="number" min="2" value={goalForm.awesomeMinutes} onChange={(e) => setGoalForm({ ...goalForm, awesomeMinutes: e.target.value })} /></label>
+            <label>Stretch minutes<input type="number" min="3" value={goalForm.stretchMinutes} onChange={(e) => setGoalForm({ ...goalForm, stretchMinutes: e.target.value })} /></label>
           </div>
           {goalMessage ? <p className="settingsMessage">{goalMessage}</p> : null}
           <button className="settingsSave" disabled={savingGoals}>{savingGoals ? "Saving…" : "Save goals"}</button>
