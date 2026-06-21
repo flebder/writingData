@@ -45,9 +45,14 @@ function goalFromEvent(event: ProjectEvent): EffectiveWritingGoals | null {
 
 export function getWritingGoalHistory(events: ProjectEvent[]): EffectiveWritingGoals[] {
   return events
-    .map(goalFromEvent)
-    .filter((goals): goals is EffectiveWritingGoals => Boolean(goals))
-    .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+    .map((event, order) => ({ goals: goalFromEvent(event), order, timestamp: event.timestamp || "" }))
+    .filter((entry): entry is { goals: EffectiveWritingGoals; order: number; timestamp: string } => Boolean(entry.goals))
+    .sort((a, b) => (
+      a.goals.effectiveDate.localeCompare(b.goals.effectiveDate)
+      || a.timestamp.localeCompare(b.timestamp)
+      || a.order - b.order
+    ))
+    .map((entry) => entry.goals);
 }
 
 export function getWritingGoalsForDate(events: ProjectEvent[], dateKey: string): EffectiveWritingGoals {
