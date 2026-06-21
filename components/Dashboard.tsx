@@ -297,7 +297,8 @@ export default function Dashboard() {
   const projectEvents = projectsPayload?.events || [];
   const localProjectState = useMemo(() => reduceProjectEvents(projectEvents, todayKey), [projectEvents, todayKey]);
   const goalsForDay = (day: string) => getWritingGoalsForDate(projectEvents, day);
-  const todayGoals = getWritingGoalsForDate(projectEvents, todayKey);
+  const tomorrowKey = addDaysToYmd(todayKey, 1);
+  const tomorrowGoals = getWritingGoalsForDate(projectEvents, tomorrowKey);
   const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectEvents]);
   const projectDeadlines = localProjectState.activeDeadlines;
   const completedProjectDeadlines = localProjectState.completedMilestones;
@@ -313,8 +314,8 @@ export default function Dashboard() {
   const projectsUnavailable = projectsPayload !== null && !projectsPayload.ok && Boolean(projectsPayload.warning);
   const projectBarClass = projectsUnavailable ? "unavailable" : projectUiUrgency(projectBarDeadline) || (projectsPayload === null ? "loading" : "empty");
   useEffect(() => {
-    setGoalForm({ baselineMinutes: String(todayGoals.baselineMinutes), awesomeMinutes: String(todayGoals.awesomeMinutes), stretchMinutes: String(todayGoals.stretchMinutes) });
-  }, [todayGoals.baselineMinutes, todayGoals.awesomeMinutes, todayGoals.stretchMinutes, todayKey]);
+    setGoalForm({ baselineMinutes: String(tomorrowGoals.baselineMinutes), awesomeMinutes: String(tomorrowGoals.awesomeMinutes), stretchMinutes: String(tomorrowGoals.stretchMinutes) });
+  }, [tomorrowGoals.baselineMinutes, tomorrowGoals.awesomeMinutes, tomorrowGoals.stretchMinutes, tomorrowKey]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -344,8 +345,7 @@ export default function Dashboard() {
       return;
     }
 
-    const goalEffectiveDate = addDaysToYmd(todayKey, 1);
-    const goalEvents = [createWritingGoalsEvent(nextGoals, goalEffectiveDate)];
+    const goalEvents = [createWritingGoalsEvent(nextGoals, tomorrowKey)];
 
     setSavingGoals(true);
     try {
@@ -531,7 +531,7 @@ export default function Dashboard() {
         {settingsOpen && <form ref={settingsPanelRef} className="panel goalSettingsPanel" onSubmit={saveGoals}>
           <div>
             <p className="eyebrow">Writing goals</p>
-            <h3>Current thresholds</h3>
+            <h3>Tomorrow’s thresholds</h3>
             <p>New goals start tomorrow. Earlier days keep the thresholds that were active then.</p>
           </div>
           <div className="goalInputs">
