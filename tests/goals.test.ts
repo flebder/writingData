@@ -29,3 +29,14 @@ test("saving a goal change creates one effective-dated threshold update", () => 
     stretch_minutes: 130
   });
 });
+
+test("latest goal update wins when multiple events share an effective date", () => {
+  const earlier = createWritingGoalsEvent({ baselineMinutes: 35, awesomeMinutes: 70, stretchMinutes: 140 }, "2026-06-02");
+  const later = createWritingGoalsEvent({ baselineMinutes: 40, awesomeMinutes: 75, stretchMinutes: 145 }, "2026-06-02");
+  earlier.timestamp = "2026-06-01T13:00:00.000Z";
+  later.timestamp = "2026-06-01T15:00:00.000Z";
+
+  assert.equal(getWritingGoalsForDate([later, earlier], "2026-06-01").baselineMinutes, 30);
+  assert.equal(getWritingGoalsForDate([later, earlier], "2026-06-02").baselineMinutes, 40);
+  assert.equal(getWritingGoalsForDate([later, earlier], "2026-06-10").stretchMinutes, 145);
+});

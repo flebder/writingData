@@ -8,7 +8,7 @@ import {
   type WritingSession,
   yearKeyFromYmd
 } from "@/lib/writing";
-import { buildWritingRecommendation, DEFAULT_RECOMMENDATION_POLICY } from "@/lib/recommendation";
+import { buildWritingRecommendation, DEFAULT_RECOMMENDATION_POLICY, type RecommendationGoalContext } from "@/lib/recommendation";
 
 export type DashboardStats = {
   dailyAverage: number;
@@ -38,7 +38,7 @@ function formatClock(minuteOfDay: number, timeZone: string): string {
   });
 }
 
-export function calculateDashboardStats(sessions: WritingSession[], now = new Date(), timeZone = WRITING_TZ): DashboardStats {
+export function calculateDashboardStats(sessions: WritingSession[], now = new Date(), timeZone = WRITING_TZ, goalContext?: RecommendationGoalContext): DashboardStats {
   const byDay = aggregateDays(sessions, timeZone);
   const dayKeys = Object.keys(byDay).sort();
   const todayKey = localTodayYmd(now);
@@ -75,7 +75,7 @@ export function calculateDashboardStats(sessions: WritingSession[], now = new Da
   const diff = dailyNow - dailyPrev;
   const pct = dailyPrev ? Math.round((diff / dailyPrev) * 100) : 0;
 
-  const rec = buildWritingRecommendation(sessions, now, DEFAULT_RECOMMENDATION_POLICY, timeZone);
+  const rec = buildWritingRecommendation(sessions, now, DEFAULT_RECOMMENDATION_POLICY, timeZone, goalContext);
   const targetLabel = rec.target === "today" ? "today" : "tomorrow";
 
   return {
