@@ -1,4 +1,5 @@
 import { addDaysToYmd, getHourInWritingTz, getMinuteInWritingTz, getYmdInWritingTz, localTodayYmd, WRITING_TZ, type WritingSession } from "@/lib/writing";
+import { canFitToday, fitDurationBeforeMidnight, isFutureFeasibleToday, localMinuteOfDay, minutesUntilLocalMidnight } from "./motivationTime";
 
 export type TimeBandPolicy = {
   preferred: { startMinute: number; endMinute: number; weight: number };
@@ -46,8 +47,16 @@ export type ClusterStats = {
   totalMinutes: number;
 };
 
+export type RecommendationGoalContext = {
+  todayWrittenMinutes: number;
+  baselineMinutes: number;
+};
+
 export type WritingRecommendation = {
   target: "today" | "tomorrow";
+  feasible: boolean;
+  neededBaselineMinutes: number;
+  minutesUntilMidnight: number;
   targetDateYmd: string;
   weekday: string;
   suggestedStartMinutes: number;
@@ -213,14 +222,13 @@ function buildDurationRecommendation(chosen: ClusterStats | null, sessions: Writ
   return clamp(adjusted, policy.minimumRecommendationMinutes, policy.softMaxRecommendationMinutes);
 }
 
-function isClusterStillValidToday(cluster: ClusterStats, targetYmd: string, now: Date, policy: RecommendationPolicy): boolean {
+function isClusterStillValidToday(cluster: ClusterStats, targetYmd: string, now: Date, policy: RecommendationPolicy, requiredMinutes: number): boolean {
   if (targetYmd !== localTodayYmd(now)) return true;
-  const nowMinuteLocal = now.getHours() * 60 + now.getMinutes();
-  return cluster.representativeMinute >= nowMinuteLocal + policy.futureBufferMinutes;
+  return isFutureFeasibleToday(cluster.representativeMinute, localMinuteOfDay(now), requiredMinutes, policy.futureBufferMinutes);
 }
 
-function pickBestValidClusterForToday(candidates: ClusterStats[], targetYmd: string, now: Date, policy: RecommendationPolicy): ClusterStats | null {
-  return candidates.find((cluster) => isClusterStillValidToday(cluster, targetYmd, now, policy)) || null;
+function pickBestValidClusterForToday(candidates: ClusterStats[], targetYmd: string, now: Date, policy: RecommendationPolicy, requiredMinutes: number): ClusterStats | null {
+  return candidates.find((cluster) => isClusterStillValidToday(cluster, targetYmd, now, policy, requiredMinutes)) || null;
 }
 
 function supportingSentence(weekday: string, chosen: ClusterStats | null, timeZone: string): string {
@@ -232,15 +240,19 @@ export function buildWritingRecommendation(
   sessions: WritingSession[],
   now = new Date(),
   policy: RecommendationPolicy = DEFAULT_RECOMMENDATION_POLICY,
-  timeZone = WRITING_TZ
+  timeZone = WRITING_TZ,
+  goalContext?: RecommendationGoalContext
 ): WritingRecommendation {
   const nowYmd = localTodayYmd(now);
-  const nowMinute = getMinuteOfDayInWritingTz(now, timeZone);
+  const nowMinute = localMinuteOfDay(now);
+  const timeLeftToday = minutesUntilLocalMidnight(now);
   const validSessions = sessions.filter((s) => new Date(s.start) <= now);
   const wroteToday = sessions.some((s) => (s.dateKey || getYmdInWritingTz(new Date(s.start), timeZone)) === nowYmd);
+  const neededBaselineMinutes = goalContext ? Math.max(0, Math.ceil(goalContext.baselineMinutes - goalContext.todayWrittenMinutes)) : 0;
+  const requiredTodayMinutes = Math.max(1, neededBaselineMinutes);
 
   const targetDate = new Date(now);
-  let target: "today" | "tomorrow" = wroteToday ? "tomorrow" : "today";
+  let target: "today" | "tomorrow" = goalContext ? (neededBaselineMinutes <= 0 ? "tomorrow" : "today") : (wroteToday ? "tomorrow" : "today");
   if (target === "tomorrow") targetDate.setDate(targetDate.getDate() + 1);
 
   const targetYmd = localTodayYmd(targetDate);
@@ -263,8 +275,8 @@ export function buildWritingRecommendation(
   }
 
   if (target === "today") {
-    const weekdayValid = pickBestValidClusterForToday(weekdayClusters, targetYmd, now, policy);
-    const generalValid = pickBestValidClusterForToday(generalClusters, targetYmd, now, policy);
+    const weekdayValid = pickBestValidClusterForToday(weekdayClusters, targetYmd, now, policy, requiredTodayMinutes);
+    const generalValid = pickBestValidClusterForToday(generalClusters, targetYmd, now, policy, requiredTodayMinutes);
     if (weekdayValid) {
       chosen = weekdayValid;
       alternative = weekdayClusters.find((c) => c.bucketStart !== weekdayValid.bucketStart && c.sessionCount >= 3) || null;
@@ -272,33 +284,45 @@ export function buildWritingRecommendation(
       chosen = generalValid;
       alternative = generalClusters.find((c) => c.bucketStart !== generalValid.bucketStart && c.sessionCount >= 3) || null;
     } else {
-      // If all practical windows are already in the past and user has not written yet, choose the nearest upcoming slot today.
-      const earliestFallback = Math.max(policy.timeBands.preferred.startMinute, nowMinute + policy.futureBufferMinutes);
-      const fallbackMinute = clamp(roundToNearest(earliestFallback, policy.bucketSizeMinutes), earliestFallback, 23 * 60 + 59);
-      chosen = {
-        bucketStart: toBucket(fallbackMinute, policy.bucketSizeMinutes),
-        bucketEnd: Math.min(23 * 60 + 59, toBucket(fallbackMinute, policy.bucketSizeMinutes) + policy.bucketSizeMinutes),
-        representativeMinute: fallbackMinute,
-        score: 0,
-        sessionCount: 0,
-        averageDurationMinutes: 45,
-        totalMinutes: 0
-      };
-      alternative = generalClusters.find((c) => c.sessionCount >= 3) || null;
+      // If all historical windows are no longer feasible, choose a practical start-now fallback when there is still enough local-day time.
+      const fallbackMinute = Math.min(nowMinute, 23 * 60 + 59);
+      if (canFitToday(fallbackMinute, requiredTodayMinutes)) {
+        chosen = {
+          bucketStart: toBucket(fallbackMinute, policy.bucketSizeMinutes),
+          bucketEnd: Math.min(23 * 60 + 59, toBucket(fallbackMinute, policy.bucketSizeMinutes) + policy.bucketSizeMinutes),
+          representativeMinute: fallbackMinute,
+          score: 0,
+          sessionCount: 0,
+          averageDurationMinutes: requiredTodayMinutes,
+          totalMinutes: 0
+        };
+        alternative = generalClusters.find((c) => c.sessionCount >= 3) || null;
+      } else {
+        chosen = null;
+        alternative = generalClusters.find((c) => c.sessionCount >= 3) || null;
+      }
     }
   }
 
-  const suggestedDurationMinutes = buildDurationRecommendation(chosen, validSessions, policy, nowYmd, timeZone);
+  const rawSuggestedDuration = buildDurationRecommendation(chosen, validSessions, policy, nowYmd, timeZone);
+  const suggestedStartMinutes = chosen?.representativeMinute ?? (target === "today" ? nowMinute : policy.timeBands.preferred.startMinute);
+  const fitTodayDuration = target === "today" ? fitDurationBeforeMidnight(rawSuggestedDuration, suggestedStartMinutes, neededBaselineMinutes) : rawSuggestedDuration;
+  const feasible = target !== "today" || fitTodayDuration != null;
+  const suggestedDurationMinutes = fitTodayDuration ?? rawSuggestedDuration;
+  const notEnoughTime = target === "today" && !feasible;
 
   return {
     target,
+    feasible,
+    neededBaselineMinutes,
+    minutesUntilMidnight: timeLeftToday,
     targetDateYmd: targetYmd,
     weekday,
-    suggestedStartMinutes: chosen?.representativeMinute ?? policy.timeBands.preferred.startMinute,
+    suggestedStartMinutes,
     suggestedDurationMinutes,
     chosenCluster: chosen,
     alternativeCluster: alternative,
-    supportingSentence: supportingSentence(weekday, chosen, timeZone),
-    encouragement: "You got this!"
+    supportingSentence: notEnoughTime ? `There isn’t enough time left today to finish the ${neededBaselineMinutes} minutes needed before midnight.` : supportingSentence(weekday, chosen, timeZone),
+    encouragement: notEnoughTime ? "Reset gently and protect tomorrow." : "You got this!"
   };
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent }
 import { addDaysToYmd, aggregateDays, getYmdInWritingTz, localTodayYmd, rollingWeekMinutes, zonedLocalToUtc, type WritingSession } from "@/lib/writing";
 import { calculateDashboardStats } from "@/lib/stats";
 import { computeStreakSummary, type StreakSegment } from "@/lib/streaks";
+import { capLinePointsAtDate } from "@/lib/lineGraph";
 import { reduceProjectEvents, type ProjectDeadline, type ProjectEvent, type ProjectState } from "@/lib/projects";
 import { createWritingGoalsEvent, getWritingGoalsForDate, validateWritingGoals, type WritingGoals } from "@/lib/goals";
 
@@ -293,10 +294,12 @@ export default function Dashboard() {
     }));
   }, [displayYear]);
 
-  const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), canonicalTimeZone), [payload, canonicalTimeZone]);
   const projectEvents = projectsPayload?.events || [];
   const localProjectState = useMemo(() => reduceProjectEvents(projectEvents, todayKey), [projectEvents, todayKey]);
   const goalsForDay = (day: string) => getWritingGoalsForDate(projectEvents, day);
+  const todayGoals = getWritingGoalsForDate(projectEvents, todayKey);
+  const todayWrittenMinutes = byDay[todayKey]?.minutes || 0;
+  const stats = useMemo(() => calculateDashboardStats(payload?.sessions || [], new Date(), canonicalTimeZone, { todayWrittenMinutes, baselineMinutes: todayGoals.baselineMinutes }), [payload, canonicalTimeZone, todayKey, todayWrittenMinutes, todayGoals.baselineMinutes]);
   const tomorrowKey = addDaysToYmd(todayKey, 1);
   const tomorrowGoals = getWritingGoalsForDate(projectEvents, tomorrowKey);
   const streaks = useMemo(() => computeStreakSummary(byDay, todayKey, (day) => getWritingGoalsForDate(projectEvents, day).baselineMinutes), [byDay, todayKey, projectEvents]);
@@ -413,12 +416,15 @@ export default function Dashboard() {
     return bins;
   }, [payload, canonicalTimeZone]);
 
-  const lineData = useMemo(() => {
-    if (viewMode === "month") return buildMonthLineData(monthDays, byDay, dateFmt, canonicalTimeZone);
-    return buildYearLineData(displayYear, byDay, canonicalTimeZone);
-  }, [viewMode, monthDays, byDay, displayYear, dateFmt, canonicalTimeZone]);
   const [todayYear, todayMonth] = todayKey.split("-").map(Number);
   const isViewingCurrentMonth = displayYear === todayYear && displayMonth === todayMonth - 1;
+  const isViewingCurrentYear = displayYear === todayYear;
+  const lineData = useMemo(() => {
+    if (viewMode === "month") {
+      return capLinePointsAtDate(buildMonthLineData(monthDays, byDay, dateFmt, canonicalTimeZone), isViewingCurrentMonth ? todayKey : undefined);
+    }
+    return capLinePointsAtDate(buildYearLineData(displayYear, byDay, canonicalTimeZone), isViewingCurrentYear ? todayKey : undefined);
+  }, [viewMode, monthDays, byDay, displayYear, dateFmt, canonicalTimeZone, isViewingCurrentMonth, isViewingCurrentYear, todayKey]);
 
   const moveBack = () => viewMode === "year" ? setDisplayDate(monthDateForYear(displayYear - 1)) : setDisplayDate(new Date(Date.UTC(displayYear, displayMonth - 1, 1)));
   const moveNext = () => viewMode === "year" ? setDisplayDate(monthDateForYear(displayYear + 1)) : setDisplayDate(new Date(Date.UTC(displayYear, displayMonth + 1, 1)));
@@ -433,7 +439,7 @@ export default function Dashboard() {
   const comparedCurrent = formatCompactRange(stats.trend.currentPeriod[0], stats.trend.currentPeriod.at(-1) || stats.trend.currentPeriod[0], canonicalTimeZone);
   const comparedPrevious = formatCompactRange(stats.trend.previousPeriod[0], stats.trend.previousPeriod.at(-1) || stats.trend.previousPeriod[0], canonicalTimeZone);
   const motivationStart = timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.suggestedStartMinutes / 60), stats.motivation.suggestedStartMinutes % 60)));
-  const motivationWindow = stats.motivation.chosenCluster ? `${timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.chosenCluster.bucketStart / 60), stats.motivation.chosenCluster.bucketStart % 60)))}–${timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.chosenCluster.bucketEnd / 60), stats.motivation.chosenCluster.bucketEnd % 60)))}` : null;
+  const motivationWindow = stats.motivation.chosenCluster && stats.motivation.chosenCluster.sessionCount > 0 ? `${timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.chosenCluster.bucketStart / 60), stats.motivation.chosenCluster.bucketStart % 60)))}–${timeFmt.format(new Date(Date.UTC(2026, 0, 1, Math.floor(stats.motivation.chosenCluster.bucketEnd / 60), stats.motivation.chosenCluster.bucketEnd % 60)))}` : null;
   const hourTooltipPoint = (event: MouseEvent<HTMLElement>) => ({
     x: Math.min(event.clientX + 12, window.innerWidth - 190),
     y: Math.min(event.clientY + 12, window.innerHeight - 96)
@@ -506,14 +512,14 @@ export default function Dashboard() {
       </section>
 
       <section className="stats">
-        <article className="panel"><h3>Daily Average</h3><p>{fmtMinutes(stats.dailyAverage)}</p></article>
+        <article className="panel"><h3>Average Writing Day</h3><p>{fmtMinutes(stats.dailyAverage)}</p></article>
         <article className="panel"><h3>Monthly Total</h3><p>{fmtMinutes(stats.monthlyTotal)}</p></article>
         <article className="panel"><h3>Yearly Total</h3><p>{fmtMinutes(stats.yearlyTotal)}</p></article>
         <article className="panel"><h3>Best Day This Month</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisMonth.date, canonicalTimeZone)}</span><small>{fmtMinutes(stats.bestDayThisMonth.minutes)}</small></p></article>
         <article className="panel"><h3>Best Day This Year</h3><p className="statInline"><span>{monthOrdinal(stats.bestDayThisYear.date, canonicalTimeZone)}</span><small>{fmtMinutes(stats.bestDayThisYear.minutes)}</small></p></article>
       </section>
 
-      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>You’re writing <strong>{trendMinutes} {minuteWord(trendMinutes)} {trendDirection}</strong> per day compared to the prior week{stats.trend.dailyPrev ? ` (${Math.abs(stats.trend.pct)}% ${trendDirection})` : ""}.</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>Write <strong>{stats.motivation.target === "today" ? "today" : "tomorrow"}</strong> at <strong>{motivationStart}</strong> for <strong>{stats.motivation.suggestedDurationMinutes} minutes</strong>.<br />{stats.motivation.encouragement}</p></article></section>
+      <section className="stats secondaryStats"><article className="panel clickableCard" onClick={() => setExpanded("trend")}><h3>Trend</h3><p>You’re writing <strong>{trendMinutes} {minuteWord(trendMinutes)} {trendDirection}</strong> per day compared to the prior week{stats.trend.dailyPrev ? ` (${Math.abs(stats.trend.pct)}% ${trendDirection})` : ""}.</p></article><article className="panel clickableCard" onClick={() => setExpanded("motivation")}><h3>Motivation</h3><p>{stats.motivation.feasible ? <>Write <strong>{stats.motivation.target === "today" ? "today" : "tomorrow"}</strong> at <strong>{motivationStart}</strong> for <strong>{stats.motivation.suggestedDurationMinutes} minutes</strong>.</> : stats.motivation.supportingSentence}<br />{stats.motivation.encouragement}</p></article></section>
 
       <section className="panel chartPanel">
         <h3>Typical writing time by day</h3>
@@ -548,7 +554,7 @@ export default function Dashboard() {
 
       {expanded === "trend" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard trendDetailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Trend details</h3><p><strong>Current pace:</strong> {stats.trend.dailyNow} {minuteWord(stats.trend.dailyNow)}/day</p><p><strong>Previous pace:</strong> {stats.trend.dailyPrev} {minuteWord(stats.trend.dailyPrev)}/day</p><p><strong>Change:</strong> {trendMinutes} {minuteWord(trendMinutes)} {trendDirection} per day</p><p><strong>Compared:</strong> {comparedCurrent} vs. {comparedPrevious}</p></div></div>}
 
-      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p><strong>Recommended:</strong> {stats.motivation.target === "today" ? "Today" : "Tomorrow"} at {motivationStart}</p><p><strong>Goal:</strong> {stats.motivation.suggestedDurationMinutes} minutes</p><p><strong>Why:</strong> {motivationWindow ? `Your strongest ${stats.motivation.weekday} window is ${motivationWindow}.` : stats.motivation.detail}</p><p><strong>Based on:</strong> {stats.motivation.chosenCluster?.sessionCount ?? 0} sessions averaging {fmtMinutes(stats.motivation.chosenCluster?.averageDurationMinutes ?? stats.motivation.suggestedDurationMinutes)}.</p></div></div>}
+      {expanded === "motivation" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard detailCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Motivation details</h3><p><strong>Recommended:</strong> {stats.motivation.feasible ? <>{stats.motivation.target === "today" ? "Today" : "Tomorrow"} at {motivationStart}</> : "No feasible start left today"}</p><p><strong>Goal:</strong> {stats.motivation.feasible ? `${stats.motivation.suggestedDurationMinutes} minutes` : `${stats.motivation.neededBaselineMinutes} minutes needed`}</p><p><strong>Why:</strong> {motivationWindow ? `Your strongest ${stats.motivation.weekday} window is ${motivationWindow}.` : stats.motivation.detail}</p>{stats.motivation.feasible ? <p><strong>Based on:</strong> {stats.motivation.chosenCluster?.sessionCount ?? 0} sessions averaging {fmtMinutes(stats.motivation.chosenCluster?.averageDurationMinutes ?? stats.motivation.suggestedDurationMinutes)}.</p> : null}</div></div>}
       {expanded === "streak" && <div className="modal" onClick={() => setExpanded(null)}><div className="modalCard" onClick={(e) => e.stopPropagation()}><button className="modalCloseX" aria-label="Close" onClick={() => setExpanded(null)}>×</button><h3>Streak details</h3><section className="stats streakGrid"><article className="panel streakCard"><h3>Current streak</h3><p>{streaks.current?.days ?? 0} days</p><small>{fmtDateRange(streaks.current)}</small></article><article className="panel streakCard"><h3>Current score</h3><p>{fmtMinutes(streaks.current?.scoreMinutes ?? 0)}</p><small>Daily avg. {fmtMinutes(streaks.current ? Math.round(streaks.current.scoreMinutes / Math.max(1, streaks.current.days)) : 0)}</small></article><article className="panel streakCard"><h3>Longest streak (year)</h3><p>{streaks.longestYear?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestYear)}</small></article><article className="panel streakCard"><h3>Best score (year)</h3><p>{fmtMinutes(streaks.bestScoreYear?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreYear)}</small></article><article className="panel streakCard"><h3>Longest streak (all time)</h3><p>{streaks.longestAllTime?.days ?? 0} days</p><small>{fmtDateRange(streaks.longestAllTime)}</small></article><article className="panel streakCard"><h3>Best score (all time)</h3><p>{fmtMinutes(streaks.bestScoreAllTime?.scoreMinutes ?? 0)}</p><small>{fmtDateRange(streaks.bestScoreAllTime)}</small></article></section></div></div>}
         </div>
       )}
